@@ -257,3 +257,154 @@ class VoiceIntent(str, Enum):
     RUN_CAPABILITY = "run_capability"
     GENERAL_QUERY = "general_query"
 
+
+# ============================================================
+# Phase 6: Adaptive Learning Loop Enums
+# ============================================================
+
+class ReplanningTrigger(str, Enum):
+    """Evidence-based triggers that cause autonomous curriculum replanning."""
+    STALL = "stall"                            # No mastery progress over N sessions
+    REGRESSION = "regression"                  # Mastery score decreased significantly
+    OVERLOAD = "overload"                      # Learner failing consistently due to difficulty
+    GAP_PERSISTENCE = "gap_persistence"        # Knowledge gap unresolved after many attempts
+    PLATEAU = "plateau"                        # Mastery stuck at same tier despite practice
+    MILESTONE_MISSED = "milestone_missed"      # Target date passed without milestone achieved
+    PREREQUISITE_FAILURE = "prerequisite_failure"  # Prerequisite mastery below threshold
+    MISCONCEPTION_LOOP = "misconception_loop"  # Same misconception recurring repeatedly
+    VELOCITY_DROP = "velocity_drop"            # Learning velocity dropped below threshold
+    MANUAL = "manual"                          # Explicitly triggered by learner/system
+
+
+class HealthStatus(str, Enum):
+    """Holistic learning health classification of a learner's current trajectory."""
+    HEALTHY = "healthy"           # On track, good velocity, mastery improving
+    STALLED = "stalled"           # No progress detected recently
+    REGRESSING = "regressing"     # Mastery scores going down
+    OVERLOADED = "overloaded"     # Consistently failing; difficulty too high
+    PLATEAUED = "plateaued"       # Progress has flatlined at a tier
+    AT_RISK = "at_risk"           # Multiple warning signals present
+    RECOVERING = "recovering"     # Improving after a stall/regression
+
+
+class ReviewUrgency(str, Enum):
+    """Priority classification for spaced-repetition review tasks."""
+    CRITICAL = "critical"   # Severely overdue (> 3× expected interval)
+    HIGH = "high"           # Overdue (> 1.5× expected interval)
+    NORMAL = "normal"       # Due within expected interval
+    LOW = "low"             # Not yet due; pre-scheduled
+    OPTIONAL = "optional"   # Bonus review for already-mastered topics
+
+
+class SandboxLanguage(str, Enum):
+    """Supported programming languages in the secure coding sandbox."""
+    PYTHON = "python"
+    JAVASCRIPT = "javascript"  # Planned
+
+
+class SandboxStatus(str, Enum):
+    """Execution outcome of a sandbox code run."""
+    SUCCESS = "success"
+    TIMEOUT = "timeout"
+    BLOCKED = "blocked"        # Blocked by allowlist / safety check
+    ERROR = "error"            # Runtime error in the submitted code
+    SYSTEM_ERROR = "system_error"  # Sandbox infrastructure failure
+
+
+# ==============================================================================
+# Phase 7: Multimodal Autonomous Learning Agent Enums
+# ==============================================================================
+
+
+class MultimodalInputType(str, Enum):
+    """Channel/Modality through which learner input or observation arrived."""
+    TEXT = "text"
+    VOICE = "voice"
+    IMAGE = "image"
+    SCREENSHOT = "screenshot"
+    DOCUMENT = "document"
+    PDF = "pdf"
+    SCREEN = "screen"
+    EVENT = "event"
+
+
+class VisionOperation(str, Enum):
+    """Visual perception operations supported by vision providers."""
+    ANALYZE_IMAGE = "analyze_image"
+    DESCRIBE_IMAGE = "describe_image"
+    EXTRACT_TEXT = "extract_text"
+    UNDERSTAND_DIAGRAM = "understand_diagram"
+    UNDERSTAND_CHART = "understand_chart"
+    ANALYZE_CODE_IMAGE = "analyze_code_image"
+
+
+class AgentTaskStatus(str, Enum):
+    """Lifecycle states of an autonomous agent task."""
+    CREATED = "created"
+    PLANNING = "planning"
+    WAITING_PERMISSION = "waiting_permission"
+    EXECUTING = "executing"
+    OBSERVING = "observing"
+    VERIFYING = "verifying"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+    TIMEOUT = "timeout"
+
+
+class AgentStepStatus(str, Enum):
+    """Execution state of an individual planned step within an autonomous task."""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    CANCELLED = "cancelled"
+
+
+class AgentRiskLevel(str, Enum):
+    """Risk tiers for autonomous actions and steps."""
+    LOW = "low"          # Read-only, inspection, query
+    MEDIUM = "medium"    # Window focus, navigation, app launch
+    HIGH = "high"        # File modification, project changes, terminal command
+    CRITICAL = "critical"  # Deleting files, modifying system configuration
+
+
+class BrowserActionType(str, Enum):
+    """Atomic browser interaction operations."""
+    OPEN_URL = "open_url"
+    SEARCH = "search"
+    NAVIGATE = "navigate"
+    CLICK = "click"
+    TYPE_TEXT = "type_text"
+    SCROLL = "scroll"
+    EXTRACT_CONTENT = "extract_content"
+    CLOSE_SESSION = "close_session"
+
+
+class CompanionChannel(str, Enum):
+    """Delivery channels for unified companion responses."""
+    TEXT = "text"
+    VOICE = "voice"
+    MULTIMODAL = "multimodal"
+
+
+class CompanionIntentDomain(str, Enum):
+    """Domain categorization for incoming user requests."""
+    LEARNING = "learning"        # Teaching, practice, assessment, concepts
+    RESEARCH = "research"        # Web search, paper search, resource curation
+    TOOL = "tool"                # Browser, app control, terminal, computer
+    DEBUGGING = "debugging"      # Code inspection, error diagnosis, project fix
+    PROJECT_STUDY = "project_study"  # Explain project, architecture, codebase
+    COMPANION = "companion"      # Conversational, motivation, meta questions
+
+
+class ProjectLearningType(str, Enum):
+    """Focus areas for learning from a codebase or project."""
+    CODEBASE_EXPLANATION = "codebase_explanation"
+    DEBUGGING = "debugging"
+    ARCHITECTURE_WALKTHROUGH = "architecture_walkthrough"
+    VIVA_PREPARATION = "viva_preparation"
+    CODE_OPTIMIZATION = "code_optimization"
+

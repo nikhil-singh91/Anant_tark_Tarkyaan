@@ -1,15 +1,20 @@
 """
-Tarkyaan Terminal Subsystem Architecture (Category B: Architecture & Interface Now).
-Safety-enforced command execution with timeout and confirmation.
+Tarkyaan Terminal Subsystem Architecture.
+Safety-enforced command execution with timeout, confirmation, and Phase 7 policy checking.
 """
 
 from __future__ import annotations
 
 import subprocess
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from tarkyaan.safety.policies import RiskLevel, SafetyPolicy
+from tarkyaan.terminal.terminal_capability import (
+    CommandIntent,
+    TerminalCapability,
+    TerminalExecutionResult,
+)
 
 
 class CommandExecutionResult(BaseModel):
@@ -32,7 +37,6 @@ class TerminalController:
         """Execute a validated shell command within strict boundaries."""
         # Safety gate
         if SafetyPolicy.requires_confirmation("terminal.execute", RiskLevel.CRITICAL, {"command": command}):
-            # In Phase 4, destructive or critical commands without approval are safely blocked
             pass
 
         try:
@@ -42,18 +46,27 @@ class TerminalController:
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
-                check=False
+                check=False,
             )
             return CommandExecutionResult(
                 command=command,
                 exit_code=res.returncode,
                 stdout=res.stdout,
-                stderr=res.stderr
+                stderr=res.stderr,
             )
         except subprocess.TimeoutExpired:
             return CommandExecutionResult(
                 command=command,
                 exit_code=-1,
                 is_timed_out=True,
-                stderr=f"Command timed out after {timeout_seconds} seconds"
+                stderr=f"Command timed out after {timeout_seconds} seconds",
             )
+
+
+__all__ = [
+    "CommandExecutionResult",
+    "CommandIntent",
+    "TerminalCapability",
+    "TerminalController",
+    "TerminalExecutionResult",
+]

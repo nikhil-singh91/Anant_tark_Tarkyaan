@@ -81,6 +81,54 @@ class TarkyaanEvent(str, Enum):
     CONFIRMATION_RESOLVED = "confirmation_resolved"
     SAFETY_VIOLATION_BLOCKED = "safety_violation_blocked"
 
+    # 7. Phase 6: Adaptive Learning Loop
+    HEALTH_ALERT = "health_alert"                        # Learner health status changed
+    REPLANNING_TRIGGERED = "replanning_triggered"        # Evidence threshold crossed
+    REPLANNING_COMPLETED = "replanning_completed"        # New plan version activated
+    REVIEW_SCHEDULED = "review_scheduled"                # Spaced review task injected
+    REVIEW_COMPLETED = "review_completed"                # Spaced review session done
+    VELOCITY_DROPPED = "velocity_dropped"                # Learning velocity alert
+    MILESTONE_MISSED = "milestone_missed"                # Milestone target date passed
+    REGRESSION_DETECTED = "regression_detected"         # Mastery score decreased
+    PROGRESS_REPORT_GENERATED = "progress_report_generated"  # Progress report ready
+    SANDBOX_EXECUTION_STARTED = "sandbox_execution_started"  # Code sandbox run started
+    SANDBOX_EXECUTION_COMPLETED = "sandbox_execution_completed"  # Code run done
+    SANDBOX_EXECUTION_BLOCKED = "sandbox_execution_blocked"   # Code run blocked by safety
+
+    # 8. Phase 7: Multimodal Perception & Vision
+    MULTIMODAL_INPUT_RECEIVED = "multimodal_input_received"
+    VISION_ANALYSIS_STARTED = "vision_analysis_started"
+    VISION_ANALYSIS_COMPLETED = "vision_analysis_completed"
+    SCREEN_CAPTURE_STARTED = "screen_capture_started"
+    SCREEN_ANALYSIS_COMPLETED = "screen_analysis_completed"
+    DOCUMENT_PARSED = "document_parsed"
+
+    # 9. Phase 7: Capabilities & Tool Execution
+    BROWSER_SESSION_STARTED = "browser_session_started"
+    BROWSER_ACTION_STARTED = "browser_action_started"
+    BROWSER_ACTION_COMPLETED = "browser_action_completed"
+    APPLICATION_ACTION_STARTED = "application_action_started"
+    APPLICATION_ACTION_COMPLETED = "application_action_completed"
+    FILESYSTEM_ACTION_STARTED = "filesystem_action_started"
+    FILESYSTEM_ACTION_COMPLETED = "filesystem_action_completed"
+    COMPUTER_ACTION_STARTED = "computer_action_started"
+    COMPUTER_ACTION_COMPLETED = "computer_action_completed"
+    TERMINAL_ACTION_STARTED = "terminal_action_started"
+    TERMINAL_ACTION_COMPLETED = "terminal_action_completed"
+
+    # 10. Phase 7: Autonomous Task Engine & Orchestration
+    AGENT_TASK_CREATED = "agent_task_created"
+    AGENT_PLAN_CREATED = "agent_plan_created"
+    AGENT_STEP_STARTED = "agent_step_started"
+    AGENT_STEP_COMPLETED = "agent_step_completed"
+    AGENT_WAITING_PERMISSION = "agent_waiting_permission"
+    AGENT_VERIFICATION_STARTED = "agent_verification_started"
+    AGENT_VERIFICATION_COMPLETED = "agent_verification_completed"
+    AGENT_TASK_COMPLETED = "agent_task_completed"
+    AGENT_TASK_CANCELLED = "agent_task_cancelled"
+    AGENT_TASK_BLOCKED = "agent_task_blocked"
+    AGENT_TASK_FAILED = "agent_task_failed"
+
 
 class EventEnvelope(BaseModel):
     """Structured envelope wrapping an emitted event and typed payload."""

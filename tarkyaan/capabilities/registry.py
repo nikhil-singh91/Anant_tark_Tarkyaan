@@ -352,6 +352,179 @@ class CapabilityRegistry:
             )
         )
 
+        # 10. Phase 6: Adaptive Learning Loop (AVAILABLE)
+        self.register(
+            CapabilityDefinition(
+                name="learning.adaptive_replanning",
+                category=CapabilityCategory.LEARNING,
+                description=(
+                    "Autonomous evidence-driven curriculum replanning: detects stalls, "
+                    "regressions, overload, and gap persistence; mutates plan minimally."
+                ),
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="planning",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="learning.spaced_review",
+                category=CapabilityCategory.LEARNING,
+                description=(
+                    "SM-2 spaced-repetition scheduling with retention review task injection. "
+                    "Automatically schedules review sessions based on mastery decay curves."
+                ),
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="planning",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="learning.progress_report",
+                category=CapabilityCategory.LEARNING,
+                description=(
+                    "Generates comprehensive learning progress reports with mastery summary, "
+                    "velocity analysis, resource effectiveness, and actionable recommendations."
+                ),
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="planning",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="learning.decision_engine",
+                category=CapabilityCategory.LEARNING,
+                description=(
+                    "Explainable autonomous decision-making layer: every decision is "
+                    "evidence-grounded with rationale, confidence, and an auditable record."
+                ),
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="planning",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="sandbox.execute_python",
+                category=CapabilityCategory.LEARNING,
+                description=(
+                    "Strictly bounded Python code execution sandbox for learner practice. "
+                    "AST-level safety checks + subprocess isolation + 5s timeout."
+                ),
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.MEDIUM,
+                subsystem="sandbox",
+            )
+        )
+
+        # 11. Phase 7: Multimodal Autonomous Agent Capabilities
+        self.register(
+            CapabilityDefinition(
+                name="vision.analyze_image",
+                category=CapabilityCategory.COMPUTER_CONTROL,
+                description="Visual perception, code screenshot analysis, and diagram parsing.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="vision",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="screen.capture_and_analyze",
+                category=CapabilityCategory.COMPUTER_CONTROL,
+                description="On-demand screen capture with OCR and educational context extraction.",
+                status=CapabilityStatus.REQUIRES_PERMISSION,
+                risk_level=RiskLevel.MEDIUM,
+                required_permissions=[PermissionCategory.SCREEN_RECORDING],
+                subsystem="vision",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="browser.session_navigate",
+                category=CapabilityCategory.BROWSER,
+                description="Controlled browser sessions for resource exploration and web search.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="browser",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="browser.extract_content",
+                category=CapabilityCategory.BROWSER,
+                description="Sanitized content extraction from verified educational web pages.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="browser",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="app.control",
+                category=CapabilityCategory.MAC_AUTOMATION,
+                description="Application lifecycle management (open, focus, verify active) for VS Code and Terminal.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.MEDIUM,
+                subsystem="computer",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="computer.interact",
+                category=CapabilityCategory.COMPUTER_CONTROL,
+                description="Accessibility-gated computer keyboard and mouse interactions with observation verification.",
+                status=CapabilityStatus.REQUIRES_PERMISSION,
+                risk_level=RiskLevel.HIGH,
+                required_permissions=[PermissionCategory.ACCESSIBILITY],
+                subsystem="computer",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="fs.inspect_project",
+                category=CapabilityCategory.FILESYSTEM,
+                description="Project hierarchy mapping and entry point discovery with secret file protection.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="filesystem",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="fs.read_code",
+                category=CapabilityCategory.FILESYSTEM,
+                description="Bounded code file reading with path traversal defense.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="filesystem",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="terminal.execute_bounded",
+                category=CapabilityCategory.TERMINAL,
+                description="Safe host shell command execution with policy checks and confirmation gates.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.CRITICAL,
+                required_permissions=[PermissionCategory.TERMINAL],
+                requires_confirmation=True,
+                subsystem="terminal",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="agent.orchestrate_task",
+                category=CapabilityCategory.LEARNING,
+                description="Autonomous Observe -> Plan -> Act -> Verify multi-step task execution engine.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="agent",
+            )
+        )
+
 
 # Global capability registry singleton for Tarkyaan
 capability_registry = CapabilityRegistry()

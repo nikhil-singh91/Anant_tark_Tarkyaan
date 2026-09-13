@@ -1353,3 +1353,438 @@ class TarkyaanMemoryManager:
             last_verified_at=_parse_dt(r["last_verified_at"]) if "last_verified_at" in r.keys() else None,
         )
 
+    # =========================================================================
+    # PHASE 6: REPLANNING RECORDS (Audit Trail)
+    # =========================================================================
+
+    def save_replanning_record(
+        self,
+        learner_id: str,
+        old_plan_id: str,
+        new_plan_id: str,
+        trigger_type: str,
+        trigger_evidence: Dict[str, Any],
+        rationale: str,
+        changes_summary: str,
+        health_status: str = "healthy",
+    ) -> str:
+        """Persist an auditable replanning record. Returns the record_id."""
+        record_id = f"rplan_{uuid.uuid4().hex[:10]}"
+        sql = """
+        INSERT INTO replanning_records (
+            record_id, learner_id, old_plan_id, new_plan_id,
+            trigger_type, trigger_evidence, rationale, changes_summary,
+            health_status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        self.store.execute(sql, (
+            record_id,
+            learner_id,
+            old_plan_id,
+            new_plan_id,
+            trigger_type,
+            json.dumps(trigger_evidence),
+            rationale,
+            changes_summary,
+            health_status,
+            _iso(_utc_now()),
+        ))
+        return record_id
+
+    def get_replanning_records(
+        self,
+        learner_id: str,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve replanning audit records for a learner, newest first."""
+        sql = """
+        SELECT * FROM replanning_records
+        WHERE learner_id = ?
+        ORDER BY created_at DESC LIMIT ?;
+        """
+        rows = self.store.fetchall(sql, (learner_id, limit))
+        results = []
+        for r in rows:
+            results.append({
+                "record_id": r["record_id"],
+                "learner_id": r["learner_id"],
+                "old_plan_id": r["old_plan_id"],
+                "new_plan_id": r["new_plan_id"],
+                "trigger_type": r["trigger_type"],
+                "trigger_evidence": json.loads(r["trigger_evidence"] or "{}"),
+                "rationale": r["rationale"],
+                "changes_summary": r["changes_summary"],
+                "health_status": r["health_status"],
+                "created_at": r["created_at"],
+            })
+        return results
+
+    # =========================================================================
+    # PHASE 6: REVIEW SCHEDULES (Spaced Repetition)
+    # =========================================================================
+
+    def save_review_schedule(
+        self,
+        learner_id: str,
+        topic_id: str,
+        next_review_at: datetime,
+        interval_days: float = 1.0,
+        ease_factor: float = 2.5,
+        repetitions: int = 0,
+        urgency: str = "normal",
+        last_mastery_score: float = 0.0,
+        last_reviewed_at: Optional[datetime] = None,
+    ) -> str:
+        """Upsert a spaced-repetition schedule for a learner/topic. Returns schedule_id."""
+        # Check if already exists
+        existing = self.store.fetchone(
+            "SELECT schedule_id FROM review_schedules WHERE learner_id = ? AND topic_id = ?;",
+            (learner_id, topic_id),
+        )
+        now = _utc_now()
+        if existing:
+            schedule_id = existing["schedule_id"]
+            sql = """
+            UPDATE review_schedules SET
+                next_review_at = ?, interval_days = ?, ease_factor = ?,
+                repetitions = ?, urgency = ?, last_mastery_score = ?,
+                last_reviewed_at = ?, updated_at = ?
+            WHERE learner_id = ? AND topic_id = ?;
+            """
+            self.store.execute(sql, (
+                _iso(next_review_at),
+                interval_days,
+                ease_factor,
+                repetitions,
+                urgency,
+                last_mastery_score,
+                _iso(last_reviewed_at),
+                _iso(now),
+                learner_id,
+                topic_id,
+            ))
+        else:
+            schedule_id = f"rev_{uuid.uuid4().hex[:10]}"
+            sql = """
+            INSERT INTO review_schedules (
+                schedule_id, learner_id, topic_id, next_review_at,
+                interval_days, ease_factor, repetitions, urgency,
+                last_reviewed_at, last_mastery_score, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+            self.store.execute(sql, (
+                schedule_id,
+                learner_id,
+                topic_id,
+                _iso(next_review_at),
+                interval_days,
+                ease_factor,
+                repetitions,
+                urgency,
+                _iso(last_reviewed_at),
+                last_mastery_score,
+                _iso(now),
+                _iso(now),
+            ))
+        return schedule_id
+
+    def get_due_reviews(
+        self,
+        learner_id: str,
+        as_of: Optional[datetime] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Fetch review schedules due on or before `as_of` (default: now), ordered by urgency."""
+        cutoff = _iso(as_of or _utc_now())
+        sql = """
+        SELECT * FROM review_schedules
+        WHERE learner_id = ? AND next_review_at <= ?
+        ORDER BY next_review_at ASC LIMIT ?;
+        """
+        rows = self.store.fetchall(sql, (learner_id, cutoff, limit))
+        return [dict(r) for r in rows]
+
+    def get_all_review_schedules(
+        self,
+        learner_id: str,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Fetch all review schedules for a learner, ordered by next review date."""
+        sql = """
+        SELECT * FROM review_schedules
+        WHERE learner_id = ?
+        ORDER BY next_review_at ASC LIMIT ?;
+        """
+        rows = self.store.fetchall(sql, (learner_id, limit))
+        return [dict(r) for r in rows]
+
+    # =========================================================================
+    # Phase 7: Autonomous Task & Multimodal Persistence
+    # =========================================================================
+
+    def record_autonomous_task(
+        self,
+        task_id: str,
+        learner_id: str,
+        goal: str,
+        status: str = "created",
+        risk_level: str = "low",
+        max_steps: int = 10,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Record a new autonomous task."""
+        now = _iso(_utc_now())
+        sql = """
+        INSERT INTO autonomous_tasks (
+            task_id, learner_id, goal, status, risk_level, current_step,
+            max_steps, result_summary, metadata, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, ?, '', ?, ?, ?);
+        """
+        self.store.execute(sql, (
+            task_id,
+            learner_id,
+            goal,
+            status,
+            risk_level,
+            max_steps,
+            json.dumps(metadata or {}),
+            now,
+            now,
+        ))
+        return task_id
+
+    def update_autonomous_task(
+        self,
+        task_id: str,
+        status: Optional[str] = None,
+        current_step: Optional[int] = None,
+        cancellation_reason: Optional[str] = None,
+        result_summary: Optional[str] = None,
+        completed: bool = False,
+    ) -> None:
+        """Update the state, progress, or completion of an autonomous task."""
+        now = _iso(_utc_now())
+        updates = ["updated_at = ?"]
+        params: List[Any] = [now]
+
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+        if current_step is not None:
+            updates.append("current_step = ?")
+            params.append(current_step)
+        if cancellation_reason is not None:
+            updates.append("cancellation_reason = ?")
+            params.append(cancellation_reason)
+        if result_summary is not None:
+            updates.append("result_summary = ?")
+            params.append(result_summary)
+        if completed:
+            updates.append("completed_at = ?")
+            params.append(now)
+
+        params.append(task_id)
+        sql = f"UPDATE autonomous_tasks SET {', '.join(updates)} WHERE task_id = ?;"
+        self.store.execute(sql, tuple(params))
+
+    def get_autonomous_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve an autonomous task by ID."""
+        sql = "SELECT * FROM autonomous_tasks WHERE task_id = ?;"
+        row = self.store.fetchone(sql, (task_id,))
+        if not row:
+            return None
+        res = dict(row)
+        res["metadata"] = json.loads(res.get("metadata") or "{}")
+        return res
+
+    def list_autonomous_tasks(
+        self,
+        learner_id: str,
+        status: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """List autonomous tasks for a learner."""
+        if status:
+            sql = "SELECT * FROM autonomous_tasks WHERE learner_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?;"
+            rows = self.store.fetchall(sql, (learner_id, status, limit))
+        else:
+            sql = "SELECT * FROM autonomous_tasks WHERE learner_id = ? ORDER BY created_at DESC LIMIT ?;"
+            rows = self.store.fetchall(sql, (learner_id, limit))
+        results = []
+        for r in rows:
+            d = dict(r)
+            d["metadata"] = json.loads(d.get("metadata") or "{}")
+            results.append(d)
+        return results
+
+    def record_agent_step(
+        self,
+        step_id: str,
+        task_id: str,
+        step_index: int,
+        action: str,
+        capability_id: str,
+        risk_level: str = "low",
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Record an agent step planned or starting execution."""
+        now = _iso(_utc_now())
+        sql = """
+        INSERT INTO agent_steps (
+            step_id, task_id, step_index, action, capability_id,
+            risk_level, status, parameters, result, verification_status,
+            started_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'running', ?, '{}', 'pending', ?);
+        """
+        self.store.execute(sql, (
+            step_id,
+            task_id,
+            step_index,
+            action,
+            capability_id,
+            risk_level,
+            json.dumps(parameters or {}),
+            now,
+        ))
+        return step_id
+
+    def update_agent_step(
+        self,
+        step_id: str,
+        status: str,
+        result: Optional[Dict[str, Any]] = None,
+        verification_status: str = "pending",
+        verification_notes: str = "",
+        error: Optional[str] = None,
+    ) -> None:
+        """Update execution outcome and verification of a step."""
+        now = _iso(_utc_now())
+        sql = """
+        UPDATE agent_steps SET
+            status = ?,
+            result = ?,
+            verification_status = ?,
+            verification_notes = ?,
+            error = ?,
+            completed_at = ?
+        WHERE step_id = ?;
+        """
+        self.store.execute(sql, (
+            status,
+            json.dumps(result or {}),
+            verification_status,
+            verification_notes,
+            error,
+            now,
+            step_id,
+        ))
+
+    def get_agent_steps(self, task_id: str) -> List[Dict[str, Any]]:
+        """Retrieve all recorded steps for an autonomous task."""
+        sql = "SELECT * FROM agent_steps WHERE task_id = ? ORDER BY step_index ASC;"
+        rows = self.store.fetchall(sql, (task_id,))
+        steps = []
+        for r in rows:
+            d = dict(r)
+            d["parameters"] = json.loads(d.get("parameters") or "{}")
+            d["result"] = json.loads(d.get("result") or "{}")
+            steps.append(d)
+        return steps
+
+    def save_project_learning_context(
+        self,
+        project_id: str,
+        learner_id: str,
+        project_path: str,
+        project_name: str,
+        language: str,
+        framework: str = "",
+        summary: str = "",
+        important_files: Optional[List[str]] = None,
+        architecture_notes: str = "",
+    ) -> str:
+        """Persist or update a project learning context."""
+        now = _iso(_utc_now())
+        sql = """
+        INSERT OR REPLACE INTO project_learning_contexts (
+            project_id, learner_id, project_path, project_name, language,
+            framework, summary, important_files, architecture_notes,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM project_learning_contexts WHERE project_id = ?), ?), ?);
+        """
+        self.store.execute(sql, (
+            project_id,
+            learner_id,
+            project_path,
+            project_name,
+            language,
+            framework,
+            summary,
+            json.dumps(important_files or []),
+            architecture_notes,
+            project_id,
+            now,
+            now,
+        ))
+        return project_id
+
+    def get_project_learning_context(self, project_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a project learning context."""
+        sql = "SELECT * FROM project_learning_contexts WHERE project_id = ?;"
+        row = self.store.fetchone(sql, (project_id,))
+        if not row:
+            return None
+        d = dict(row)
+        d["important_files"] = json.loads(d.get("important_files") or "[]")
+        return d
+
+    def record_multimodal_artifact(
+        self,
+        artifact_id: str,
+        learner_id: str,
+        artifact_type: str,
+        file_path: Optional[str] = None,
+        summary: str = "",
+        extracted_text: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Persist metadata for an uploaded image, document, or screenshot."""
+        now = _iso(_utc_now())
+        sql = """
+        INSERT INTO multimodal_artifacts (
+            artifact_id, learner_id, artifact_type, file_path,
+            summary, extracted_text, metadata, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        self.store.execute(sql, (
+            artifact_id,
+            learner_id,
+            artifact_type,
+            file_path,
+            summary,
+            extracted_text,
+            json.dumps(metadata or {}),
+            now,
+        ))
+        return artifact_id
+
+    def get_multimodal_artifacts(
+        self,
+        learner_id: str,
+        artifact_type: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve multimodal artifacts for a learner."""
+        if artifact_type:
+            sql = "SELECT * FROM multimodal_artifacts WHERE learner_id = ? AND artifact_type = ? ORDER BY created_at DESC LIMIT ?;"
+            rows = self.store.fetchall(sql, (learner_id, artifact_type, limit))
+        else:
+            sql = "SELECT * FROM multimodal_artifacts WHERE learner_id = ? ORDER BY created_at DESC LIMIT ?;"
+            rows = self.store.fetchall(sql, (learner_id, limit))
+        results = []
+        for r in rows:
+            d = dict(r)
+            d["metadata"] = json.loads(d.get("metadata") or "{}")
+            results.append(d)
+        return results
+

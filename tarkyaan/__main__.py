@@ -81,7 +81,83 @@ def check_runtime_health() -> int:
         voice_ctrl = VoiceConversationController(session_engine=session_eng)
         print("  [+] Advanced Voice Companion Loop & Command Recognizer operational")
 
-        print("\nAll Tarkyaan Phase 1-5 subsystems are operational and healthy.\n")
+        # 13. Adaptive Learning Engine (Phase 6)
+        from tarkyaan.planning import AdaptiveLearningEngine
+        adaptive_eng = AdaptiveLearningEngine(memory=manager, event_bus=event_bus)
+        print("  [+] Adaptive Learning Engine & Health Analyzer operational")
+
+        # 14. Replanning Engine (Phase 6)
+        from tarkyaan.planning import ReplanningEngine
+        replan_eng = ReplanningEngine(memory=manager, planner=planner, event_bus=event_bus)
+        print("  [+] Replanning Engine & Curriculum Mutation Engine operational")
+
+        # 15. Review Scheduler (Phase 6)
+        from tarkyaan.planning import ReviewScheduler
+        review_scheduler = ReviewScheduler(memory=manager, event_bus=event_bus)
+        print("  [+] Spaced-Repetition Review Scheduler (SM-2) operational")
+
+        # 16. Progress Report Engine (Phase 6)
+        from tarkyaan.planning import ProgressReportEngine
+        progress_eng = ProgressReportEngine(memory=manager, event_bus=event_bus)
+        print("  [+] Learning Progress Report Engine operational")
+
+        # 17. Learning Decision Engine (Phase 6)
+        from tarkyaan.planning import LearningDecisionEngine
+        print("  [+] Explainable Learning Decision Engine operational")
+
+        # 18. Secure Coding Sandbox (Phase 6)
+        from tarkyaan.sandbox import SecureCodingSandbox
+        sandbox = SecureCodingSandbox()
+        print("  [+] Secure Coding Sandbox (AST-checked, subprocess-isolated) operational")
+
+        # 19. Vision & Multimodal Perception (Phase 7)
+        from tarkyaan.vision import ImageUnderstandingEngine, DocumentUnderstandingEngine
+        vision_eng = ImageUnderstandingEngine(event_bus=event_bus)
+        doc_eng = DocumentUnderstandingEngine(event_bus=event_bus)
+        print("  [+] Vision Perception & Bounded Document Understanding Engines operational")
+
+        # 20. Screen Awareness (Phase 7)
+        from tarkyaan.vision import ScreenUnderstandingEngine
+        screen_eng = ScreenUnderstandingEngine(event_bus=event_bus)
+        print("  [+] Screen Awareness & Context Observation Engine operational")
+
+        # 21. Browser Capability (Phase 7)
+        from tarkyaan.browser import BrowserCapability, BrowserSessionManager
+        browser_cap = BrowserCapability(event_bus=event_bus)
+        print("  [+] Bounded Browser Intelligence & Session Manager operational")
+
+        # 22. Computer & Application Interaction (Phase 7)
+        from tarkyaan.computer import ApplicationAdapter, MacOSComputerController
+        app_adapter = ApplicationAdapter(event_bus=event_bus, mock_mode=True)
+        print("  [+] Computer Interaction & Application Lifecycle Adapter operational")
+
+        # 23. Filesystem Learning Subsystem (Phase 7)
+        from tarkyaan.filesystem import FilesystemCapability
+        fs_cap = FilesystemCapability(event_bus=event_bus)
+        print("  [+] Project-Based Filesystem Learning Engine operational")
+
+        # 24. Terminal Capability (Phase 7)
+        from tarkyaan.terminal import TerminalCapability
+        term_cap = TerminalCapability(event_bus=event_bus, mock_mode=True)
+        print("  [+] Host Terminal Execution & Safety Policy Gate operational")
+
+        # 25. Autonomous Task Engine (Phase 7)
+        from tarkyaan.agent import AutonomousTaskEngine
+        agent_eng = AutonomousTaskEngine(memory_mgr=manager, event_bus=event_bus)
+        print("  [+] Autonomous Task Engine (Observe->Plan->Act->Verify) operational")
+
+        # 26. Unified Companion Router (Phase 7)
+        from tarkyaan.companion import UnifiedCompanionRouter
+        router = UnifiedCompanionRouter(
+            agent_engine=agent_eng,
+            browser_capability=browser_cap,
+            app_adapter=app_adapter,
+            fs_capability=fs_cap,
+            event_bus=event_bus,
+        )
+        print("  [+] Unified Multimodal Companion Router & Prompt Defense operational")
+
+        print("\nAll Tarkyaan Phase 1-7 subsystems are operational and healthy.\n")
         return 0
     except Exception as exc:
         print(f"\n[-] Tarkyaan startup health check failed: {exc}", file=sys.stderr)

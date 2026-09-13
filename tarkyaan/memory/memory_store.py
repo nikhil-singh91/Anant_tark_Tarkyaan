@@ -409,6 +409,110 @@ class TarkyaanMemoryStore:
             timestamp TEXT NOT NULL
         );
 
+        -- 24. Replanning Records (Phase 6 — Audit Trail)
+        CREATE TABLE IF NOT EXISTS replanning_records (
+            record_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            old_plan_id TEXT NOT NULL,
+            new_plan_id TEXT NOT NULL,
+            trigger_type TEXT NOT NULL,
+            trigger_evidence TEXT NOT NULL DEFAULT '{}',
+            rationale TEXT NOT NULL DEFAULT '',
+            changes_summary TEXT NOT NULL DEFAULT '',
+            health_status TEXT NOT NULL DEFAULT 'healthy',
+            created_at TEXT NOT NULL
+        );
+
+        -- 25. Review Schedules (Phase 6 — Spaced Repetition)
+        CREATE TABLE IF NOT EXISTS review_schedules (
+            schedule_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            topic_id TEXT NOT NULL,
+            next_review_at TEXT NOT NULL,
+            interval_days REAL NOT NULL DEFAULT 1.0,
+            ease_factor REAL NOT NULL DEFAULT 2.5,
+            repetitions INTEGER NOT NULL DEFAULT 0,
+            urgency TEXT NOT NULL DEFAULT 'normal',
+            last_reviewed_at TEXT,
+            last_mastery_score REAL NOT NULL DEFAULT 0.0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(learner_id, topic_id)
+        );
+
+        -- 26. Autonomous Tasks (Phase 7 — Multi-step Orchestration)
+        CREATE TABLE IF NOT EXISTS autonomous_tasks (
+            task_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            goal TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'created',
+            risk_level TEXT NOT NULL DEFAULT 'low',
+            current_step INTEGER NOT NULL DEFAULT 0,
+            max_steps INTEGER NOT NULL DEFAULT 10,
+            cancellation_reason TEXT,
+            result_summary TEXT NOT NULL DEFAULT '',
+            metadata TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        );
+
+        -- 27. Agent Steps (Phase 7 — Observe/Plan/Act/Verify Step Audit)
+        CREATE TABLE IF NOT EXISTS agent_steps (
+            step_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES autonomous_tasks(task_id) ON DELETE CASCADE,
+            step_index INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            capability_id TEXT NOT NULL,
+            risk_level TEXT NOT NULL DEFAULT 'low',
+            status TEXT NOT NULL DEFAULT 'pending',
+            parameters TEXT NOT NULL DEFAULT '{}',
+            result TEXT NOT NULL DEFAULT '{}',
+            verification_status TEXT NOT NULL DEFAULT 'pending',
+            verification_notes TEXT NOT NULL DEFAULT '',
+            error TEXT,
+            started_at TEXT,
+            completed_at TEXT
+        );
+
+        -- 28. Permission Audit Log (Phase 7 — Permission Checks & Elevation Tracking)
+        CREATE TABLE IF NOT EXISTS permission_audit_log (
+            log_id TEXT PRIMARY KEY,
+            task_id TEXT,
+            permission_category TEXT NOT NULL,
+            action TEXT NOT NULL,
+            status TEXT NOT NULL,
+            rationale TEXT NOT NULL DEFAULT '',
+            timestamp TEXT NOT NULL
+        );
+
+        -- 29. Project Learning Contexts (Phase 7 — Project-based learning & code understanding)
+        CREATE TABLE IF NOT EXISTS project_learning_contexts (
+            project_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            project_path TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            language TEXT NOT NULL,
+            framework TEXT NOT NULL DEFAULT '',
+            summary TEXT NOT NULL DEFAULT '',
+            important_files TEXT NOT NULL DEFAULT '[]',
+            architecture_notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        -- 30. Multimodal Artifacts (Phase 7 — Metadata for images, docs, screenshots)
+        CREATE TABLE IF NOT EXISTS multimodal_artifacts (
+            artifact_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            artifact_type TEXT NOT NULL,
+            file_path TEXT,
+            summary TEXT NOT NULL DEFAULT '',
+            extracted_text TEXT NOT NULL DEFAULT '',
+            metadata TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_misc_learner ON misconceptions(learner_id, topic_id);
         CREATE INDEX IF NOT EXISTS idx_assess_learner ON assessments(learner_id, topic_id);
         CREATE INDEX IF NOT EXISTS idx_sess_learner ON learning_sessions(learner_id, start_time);
@@ -421,6 +525,12 @@ class TarkyaanMemoryStore:
         CREATE INDEX IF NOT EXISTS idx_items_learner_type ON memory_items(learner_id, memory_type);
         CREATE INDEX IF NOT EXISTS idx_items_key ON memory_items(learner_id, key);
         CREATE INDEX IF NOT EXISTS idx_research_learner ON research_history(learner_id, task_id);
+        CREATE INDEX IF NOT EXISTS idx_replanning_learner ON replanning_records(learner_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_review_schedules ON review_schedules(learner_id, next_review_at);
+        CREATE INDEX IF NOT EXISTS idx_agent_tasks_learner ON autonomous_tasks(learner_id, status);
+        CREATE INDEX IF NOT EXISTS idx_agent_steps_task ON agent_steps(task_id, step_index);
+        CREATE INDEX IF NOT EXISTS idx_project_learner ON project_learning_contexts(learner_id, project_path);
+        CREATE INDEX IF NOT EXISTS idx_multimodal_learner ON multimodal_artifacts(learner_id, artifact_type);
         """
         with self._lock:
             conn = self.get_connection()
