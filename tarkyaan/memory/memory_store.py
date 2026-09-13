@@ -378,6 +378,21 @@ class TarkyaanMemoryStore:
             created_at TEXT NOT NULL
         );
 
+        -- 22. Research History
+        CREATE TABLE IF NOT EXISTS research_history (
+            history_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            concept_id TEXT NOT NULL,
+            query TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'success',
+            discovered_count INTEGER NOT NULL DEFAULT 0,
+            selected_count INTEGER NOT NULL DEFAULT 0,
+            selected_resource_ids TEXT NOT NULL DEFAULT '[]',
+            timestamp TEXT NOT NULL
+        );
+
         -- Indexes for fast isolated retrieval
         CREATE INDEX IF NOT EXISTS idx_goals_learner ON learning_goals(learner_id, is_active);
         CREATE INDEX IF NOT EXISTS idx_mastery_learner ON topic_mastery(learner_id, tier);
@@ -392,6 +407,7 @@ class TarkyaanMemoryStore:
         CREATE INDEX IF NOT EXISTS idx_plan_versions ON plan_versions(plan_id, version);
         CREATE INDEX IF NOT EXISTS idx_items_learner_type ON memory_items(learner_id, memory_type);
         CREATE INDEX IF NOT EXISTS idx_items_key ON memory_items(learner_id, key);
+        CREATE INDEX IF NOT EXISTS idx_research_learner ON research_history(learner_id, task_id);
         """
         with self._lock:
             conn = self.get_connection()
@@ -418,6 +434,37 @@ class TarkyaanMemoryStore:
             ]:
                 try:
                     conn.execute(f"ALTER TABLE learning_tasks ADD COLUMN {col_name} {col_type};")
+                except Exception:
+                    pass
+
+            # Ensure extended columns for resources
+            for col_name, col_type in [
+                ("domain", "TEXT NOT NULL DEFAULT ''"),
+                ("provider", "TEXT NOT NULL DEFAULT 'mock'"),
+                ("author", "TEXT"),
+                ("description", "TEXT NOT NULL DEFAULT ''"),
+                ("concept_ids", "TEXT NOT NULL DEFAULT '[]'"),
+                ("task_ids", "TEXT NOT NULL DEFAULT '[]'"),
+                ("difficulty", "INTEGER NOT NULL DEFAULT 2"),
+                ("language", "TEXT NOT NULL DEFAULT 'en'"),
+                ("duration_minutes", "REAL"),
+                ("published_at", "TEXT"),
+                ("updated_at", "TEXT"),
+                ("relevance_score", "REAL NOT NULL DEFAULT 0.5"),
+                ("authority_score", "REAL NOT NULL DEFAULT 0.5"),
+                ("quality_score", "REAL NOT NULL DEFAULT 0.5"),
+                ("learner_fit_score", "REAL NOT NULL DEFAULT 0.5"),
+                ("freshness_score", "REAL NOT NULL DEFAULT 0.5"),
+                ("usefulness_score", "REAL NOT NULL DEFAULT 0.5"),
+                ("overall_score", "REAL NOT NULL DEFAULT 0.5"),
+                ("confidence", "REAL NOT NULL DEFAULT 0.7"),
+                ("provenance", "TEXT NOT NULL DEFAULT '{}'"),
+                ("evaluation_notes", "TEXT NOT NULL DEFAULT '[]'"),
+                ("discovered_at", "TEXT"),
+                ("last_verified_at", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE resources ADD COLUMN {col_name} {col_type};")
                 except Exception:
                     pass
 

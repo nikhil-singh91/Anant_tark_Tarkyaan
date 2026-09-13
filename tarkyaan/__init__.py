@@ -82,6 +82,82 @@ from tarkyaan.planning import (
     WorkloadEngine,
 )
 
+from tarkyaan.capabilities import (
+    CapabilityCategory,
+    CapabilityDefinition,
+    CapabilityRegistry,
+    CapabilityStatus,
+    capability_registry,
+)
+from tarkyaan.events import EventBus, TarkyaanEvent, event_bus
+from tarkyaan.environment import EnvironmentContext, EnvironmentObserver
+from tarkyaan.permissions import (
+    PermissionCategory,
+    PermissionManager,
+    PermissionStatus,
+    permission_manager,
+)
+from tarkyaan.providers import (
+    BaseProvider,
+    LLMProvider,
+    ProviderHealth,
+    ProviderManager,
+    VoiceSTTProvider,
+    VoiceTTSProvider,
+    provider_manager,
+)
+from tarkyaan.safety import (
+    ConfirmationRequest,
+    PromptInjectionGuard,
+    RiskLevel,
+    SafetyPolicy,
+    safety_policy,
+)
+from tarkyaan.tasks import (
+    AutonomousTask,
+    AutonomousTaskExecutor,
+    StepResult,
+    TaskAuditRecord,
+    TaskExecutionStatus,
+    TaskStep,
+)
+from tarkyaan.models.enums import (
+    AutonomyLevel,
+    EpistemicStatus,
+    MasteryTier,
+    MemorySource,
+    MemoryType,
+    MisconceptionCategory,
+    ResearchDepth,
+    ResourceType,
+    SourceAuthorityTier,
+    TaskStatus,
+)
+from tarkyaan.models.research import (
+    CuratedResourceBundle,
+    ResearchHistoryEntry,
+    ResearchIntent,
+    ResourceDimensionScores,
+    ResourceProvenance,
+    SearchResultCandidate,
+)
+from tarkyaan.research import (
+    MockSearchProvider,
+    QueryGenerator,
+    ResearchCache,
+    ResearchEngine,
+    ResourceClassifier,
+    ResourceCurator,
+    ResourceEvaluator,
+    ResourceExtractor,
+    ResourceRanker,
+    SearchOptions,
+    SearchProvider,
+    SearchResponse,
+    TavilySearchProvider,
+    URLNormalizer,
+)
+
 __all__ = [
     "__version__",
     "settings",
@@ -94,6 +170,9 @@ __all__ = [
     "MemoryType",
     "MisconceptionCategory",
     "TaskStatus",
+    "ResourceType",
+    "ResearchDepth",
+    "SourceAuthorityTier",
     # Models
     "LearnerProfile",
     "LearningGoal",
@@ -111,6 +190,12 @@ __all__ = [
     "ReplanningRecord",
     "ResourceEvaluationScore",
     "StudyPhase",
+    "ResearchIntent",
+    "SearchResultCandidate",
+    "ResourceDimensionScores",
+    "ResourceProvenance",
+    "CuratedResourceBundle",
+    "ResearchHistoryEntry",
     # Memory
     "MemoryItem",
     "TarkyaanMemoryStore",
@@ -160,4 +245,57 @@ __all__ = [
     "PlanValidator",
     "PlanBuilder",
     "LearningPlanner",
+    # Phase 4 Capabilities Foundation
+    "CapabilityRegistry",
+    "CapabilityDefinition",
+    "CapabilityCategory",
+    "CapabilityStatus",
+    "capability_registry",
+    # Events
+    "EventBus",
+    "TarkyaanEvent",
+    "event_bus",
+    # Safety & Permissions
+    "SafetyPolicy",
+    "PromptInjectionGuard",
+    "RiskLevel",
+    "ConfirmationRequest",
+    "safety_policy",
+    "PermissionManager",
+    "PermissionCategory",
+    "PermissionStatus",
+    "permission_manager",
+    # Providers
+    "ProviderManager",
+    "BaseProvider",
+    "LLMProvider",
+    "VoiceSTTProvider",
+    "VoiceTTSProvider",
+    "ProviderHealth",
+    "provider_manager",
+    # Autonomous Tasks
+    "AutonomousTask",
+    "TaskStep",
+    "StepResult",
+    "TaskExecutionStatus",
+    "TaskAuditRecord",
+    "AutonomousTaskExecutor",
+    # Environment
+    "EnvironmentContext",
+    "EnvironmentObserver",
+    # Research Engine
+    "ResearchEngine",
+    "QueryGenerator",
+    "URLNormalizer",
+    "ResourceExtractor",
+    "ResourceClassifier",
+    "ResourceEvaluator",
+    "ResourceRanker",
+    "ResourceCurator",
+    "ResearchCache",
+    "SearchProvider",
+    "SearchOptions",
+    "SearchResponse",
+    "MockSearchProvider",
+    "TavilySearchProvider",
 ]

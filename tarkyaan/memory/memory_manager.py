@@ -31,7 +31,7 @@ from tarkyaan.models.enums import (
 from tarkyaan.models.gaps import KnowledgeGap, MisconceptionRecord
 from tarkyaan.models.goals import LearningGoal
 from tarkyaan.models.learner import LearnerProfile
-from tarkyaan.models.learning import LearningSession, ProgressSnapshot
+from tarkyaan.models.learning import LearningResource, LearningSession, ProgressSnapshot
 from tarkyaan.models.mastery import Subject, Topic, TopicMastery
 from tarkyaan.models.planning import (
     LearningPlan,
@@ -40,6 +40,7 @@ from tarkyaan.models.planning import (
     PlanExplanation,
     StudyPhase,
 )
+from tarkyaan.models.research import ResearchHistoryEntry, ResourceProvenance
 
 
 def _iso(dt: Optional[datetime]) -> Optional[str]:
@@ -99,6 +100,8 @@ class TarkyaanMemoryManager:
             _iso(profile.last_active_at)
         ))
         return profile
+
+    save_learner_profile = create_learner
 
     def get_learner(self, learner_id: str) -> Optional[LearnerProfile]:
         sql = "SELECT * FROM learners WHERE learner_id = ?;"
@@ -1055,3 +1058,155 @@ class TarkyaanMemoryManager:
         sql = "SELECT * FROM plan_versions WHERE plan_id = ? ORDER BY version ASC, created_at ASC;"
         rows = self.store.fetchall(sql, (plan_id,))
         return [dict(r) for r in rows]
+
+    # =========================================================================
+    # PHASE 4: EDUCATIONAL RESOURCES & RESEARCH PERSISTENCE
+    # =========================================================================
+
+    def save_resource(self, res: LearningResource) -> None:
+        """Persist or update an evaluated educational resource."""
+        sql = """
+        INSERT OR REPLACE INTO resources (
+            resource_id, topic_id, title, url, resource_type, domain, provider,
+            author, description, concept_ids, task_ids, difficulty, language,
+            duration_minutes, published_at, updated_at, relevance_score, authority_score,
+            quality_score, learner_fit_score, freshness_score, usefulness_score,
+            overall_score, confidence, provenance, evaluation_notes, recommended_order,
+            discovered_at, last_verified_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        prov_json = res.provenance.model_dump_json() if res.provenance else "{}"
+        self.store.execute(sql, (
+            res.resource_id,
+            res.topic_id or (res.concept_ids[0] if res.concept_ids else ""),
+            res.title,
+            res.url,
+            res.resource_type,
+            res.domain,
+            res.provider,
+            res.author,
+            res.description,
+            json.dumps(res.concept_ids),
+            json.dumps(res.task_ids),
+            res.difficulty,
+            res.language,
+            res.duration_minutes,
+            _iso(res.published_at),
+            _iso(res.updated_at),
+            res.relevance_score,
+            res.authority_score,
+            res.quality_score,
+            res.learner_fit_score,
+            res.freshness_score,
+            res.usefulness_score,
+            res.overall_score,
+            res.confidence,
+            prov_json,
+            json.dumps(res.evaluation_notes),
+            res.recommended_order,
+            _iso(res.discovered_at),
+            _iso(res.last_verified_at)
+        ))
+
+    def get_resource(self, resource_id: str) -> Optional[LearningResource]:
+        """Fetch a single resource by its unique identifier."""
+        sql = "SELECT * FROM resources WHERE resource_id = ?;"
+        row = self.store.fetchone(sql, (resource_id,))
+        if not row:
+            return None
+        return self._row_to_resource(row)
+
+    def list_resources_for_task(self, task_id: str) -> List[LearningResource]:
+        """Fetch all resources attached to a specific learning task."""
+        sql = "SELECT * FROM resources WHERE task_ids LIKE ? ORDER BY overall_score DESC;"
+        pattern = f'%"{task_id}"%'
+        rows = self.store.fetchall(sql, (pattern,))
+        return [self._row_to_resource(r) for r in rows]
+
+    def list_resources_for_concept(self, concept_id: str) -> List[LearningResource]:
+        """Fetch all resources mapped to a specific concept."""
+        sql = "SELECT * FROM resources WHERE topic_id = ? OR concept_ids LIKE ? ORDER BY overall_score DESC;"
+        pattern = f'%"{concept_id}"%'
+        rows = self.store.fetchall(sql, (concept_id, pattern))
+        return [self._row_to_resource(r) for r in rows]
+
+    def save_research_history(self, entry: ResearchHistoryEntry) -> None:
+        """Audit log of an autonomous research run."""
+        sql = """
+        INSERT OR REPLACE INTO research_history (
+            history_id, learner_id, task_id, concept_id, query, provider,
+            status, discovered_count, selected_count, selected_resource_ids, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        self.store.execute(sql, (
+            entry.history_id,
+            entry.learner_id,
+            entry.task_id,
+            entry.concept_id,
+            entry.query,
+            entry.provider,
+            entry.status,
+            entry.discovered_count,
+            entry.selected_count,
+            json.dumps(entry.selected_resource_ids),
+            _iso(entry.timestamp)
+        ))
+
+    def get_research_history(self, learner_id: str, limit: int = 20) -> List[ResearchHistoryEntry]:
+        """Retrieve recent research runs for a learner."""
+        sql = "SELECT * FROM research_history WHERE learner_id = ? ORDER BY timestamp DESC LIMIT ?;"
+        rows = self.store.fetchall(sql, (learner_id, limit))
+        entries: List[ResearchHistoryEntry] = []
+        for r in rows:
+            entries.append(ResearchHistoryEntry(
+                history_id=r["history_id"],
+                learner_id=r["learner_id"],
+                task_id=r["task_id"],
+                concept_id=r["concept_id"],
+                query=r["query"],
+                provider=r["provider"],
+                status=r["status"],
+                discovered_count=r["discovered_count"],
+                selected_count=r["selected_count"],
+                selected_resource_ids=json.loads(r["selected_resource_ids"] or "[]"),
+                timestamp=_parse_dt(r["timestamp"]) or _utc_now()
+            ))
+        return entries
+
+    def _row_to_resource(self, r: Any) -> LearningResource:
+        """Convert a database row into a validated LearningResource model."""
+        prov_data = json.loads(r["provenance"] or "{}") if "provenance" in r.keys() else {}
+        prov = ResourceProvenance(**prov_data) if prov_data else None
+
+        return LearningResource(
+            resource_id=r["resource_id"],
+            title=r["title"],
+            url=r["url"],
+            resource_type=r["resource_type"],
+            domain=r["domain"] if "domain" in r.keys() and r["domain"] else "",
+            provider=r["provider"] if "provider" in r.keys() and r["provider"] else "mock",
+            author=r["author"] if "author" in r.keys() else None,
+            description=r["description"] if "description" in r.keys() and r["description"] else "",
+            topic_id=r["topic_id"] if "topic_id" in r.keys() and r["topic_id"] else "",
+            concept_ids=json.loads(r["concept_ids"] or "[]") if "concept_ids" in r.keys() and r["concept_ids"] else [],
+            task_ids=json.loads(r["task_ids"] or "[]") if "task_ids" in r.keys() and r["task_ids"] else [],
+            difficulty=r["difficulty"] if "difficulty" in r.keys() and r["difficulty"] else 2,
+            language=r["language"] if "language" in r.keys() and r["language"] else "en",
+            duration_minutes=r["duration_minutes"] if "duration_minutes" in r.keys() else None,
+            published_at=_parse_dt(r["published_at"]) if "published_at" in r.keys() else None,
+            updated_at=_parse_dt(r["updated_at"]) if "updated_at" in r.keys() else None,
+            relevance_score=r["relevance_score"] if "relevance_score" in r.keys() else 0.5,
+            authority_score=r["authority_score"] if "authority_score" in r.keys() else 0.5,
+            quality_score=r["quality_score"] if "quality_score" in r.keys() else 0.5,
+            learner_fit_score=r["learner_fit_score"] if "learner_fit_score" in r.keys() else 0.5,
+            freshness_score=r["freshness_score"] if "freshness_score" in r.keys() else 0.5,
+            usefulness_score=r["usefulness_score"] if "usefulness_score" in r.keys() else 0.5,
+            overall_score=r["overall_score"] if "overall_score" in r.keys() else 0.5,
+            confidence=r["confidence"] if "confidence" in r.keys() else 0.7,
+            provenance=prov,
+            evaluation_notes=json.loads(r["evaluation_notes"] or "[]") if "evaluation_notes" in r.keys() and r["evaluation_notes"] else [],
+            recommended_order=r["recommended_order"] if "recommended_order" in r.keys() else 1,
+            discovered_at=(_parse_dt(r["discovered_at"]) if "discovered_at" in r.keys() and r["discovered_at"] else None) or _utc_now(),
+            last_verified_at=_parse_dt(r["last_verified_at"]) if "last_verified_at" in r.keys() else None,
+        )
+

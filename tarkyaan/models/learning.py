@@ -60,14 +60,38 @@ class ResourceEvaluationScore(BaseModel):
 
 
 class LearningResource(BaseModel):
-    """Curated learning resource discovered or referenced for a topic."""
+    """Curated learning resource discovered or referenced for a topic or task."""
     resource_id: str = Field(default_factory=lambda: f"res_{uuid.uuid4().hex[:8]}")
-    topic_id: str
+    topic_id: str = ""
     title: str
     url: str
-    resource_type: str = Field(default="article", description="article, video, problem, doc")
-    evaluation: Optional[ResourceEvaluationScore] = None
+    resource_type: str = Field(default="article", description="article, video, coding_problem, official_docs, tutorial, etc.")
+    domain: str = ""
+    provider: str = "mock"
+    author: Optional[str] = None
+    description: str = ""
+    concept_ids: List[str] = Field(default_factory=list)
+    task_ids: List[str] = Field(default_factory=list)
+    difficulty: int = Field(default=2, ge=1, le=5)
+    language: str = "en"
+    duration_minutes: Optional[int] = None
+    published_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    relevance_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    authority_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    quality_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    learner_fit_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    freshness_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    usefulness_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    overall_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+    provenance: Optional[Any] = None  # ResourceProvenance
+    evaluation_notes: List[str] = Field(default_factory=list)
     recommended_order: int = 1
+    discovered_at: datetime = Field(default_factory=_utc_now)
+    last_verified_at: Optional[datetime] = None
+    evaluation: Optional[ResourceEvaluationScore] = None
+
 
 
 class ReplanningRecord(BaseModel):

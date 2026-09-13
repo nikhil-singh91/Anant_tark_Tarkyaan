@@ -118,3 +118,41 @@ class PlanValidationStatus(str, Enum):
     VALID = "valid"
     INVALID = "invalid"
     WARNING = "warning"
+
+
+class ResourceType(str, Enum):
+    """Classification of educational and technical learning resources."""
+    OFFICIAL_DOCS = "official_docs"
+    DOCUMENTATION = "documentation"
+    TUTORIAL = "tutorial"
+    VIDEO = "video"
+    COURSE = "course"
+    BOOK = "book"
+    PAPER = "paper"
+    RESEARCH_PAPER = "research_paper"
+    CODING_PROBLEM = "coding_problem"
+    EXERCISE = "exercise"
+    PROJECT = "project"
+    REFERENCE = "reference"
+    LECTURE = "lecture"
+    DATASET = "dataset"
+    INTERACTIVE = "interactive"
+    ARTICLE = "article"
+
+
+class ResearchDepth(str, Enum):
+    """Depth specification for autonomous research inquiry."""
+    QUICK = "quick"
+    STANDARD = "standard"
+    DEEP = "deep"
+    EXHAUSTIVE = "exhaustive"
+
+
+class SourceAuthorityTier(str, Enum):
+    """Evaluated tier of authority and institutional credibility."""
+    TIER_1_OFFICIAL = "tier_1_official"
+    TIER_2_ACADEMIC_PRIMARY = "tier_2_academic_primary"
+    TIER_3_REPUTABLE_EDUCATIONAL = "tier_3_reputable_educational"
+    TIER_4_COMMUNITY_PRACTITIONER = "tier_4_community_practitioner"
+    TIER_5_UNVERIFIED = "tier_5_unverified"
+
