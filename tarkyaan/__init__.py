@@ -39,6 +39,33 @@ from tarkyaan.models.learning import (
     StudyPhase,
 )
 from tarkyaan.models.mastery import Subject, Topic, TopicMastery
+from tarkyaan.models.diagnostic import (
+    DiagnosticDimension,
+    DiagnosticQuestion,
+    DiagnosticReport,
+    DiagnosticSession,
+    DiagnosticSessionStatus,
+    QuestionType,
+)
+from tarkyaan.knowledge import (
+    CandidateMisconception,
+    ConceptNode,
+    CyclicDependencyError,
+    GapAnalyzer,
+    GapSeverity,
+    GapType,
+    MisconceptionDetector,
+    PrerequisiteDAG,
+    RootCauseResult,
+)
+from tarkyaan.assessment import (
+    AnswerEvaluator,
+    DiagnosticEngine,
+    DiagnosticEvidence,
+    InferredEvaluation,
+    ObservedEvidence,
+    QuestionGenerator,
+)
 
 __all__ = [
     "__version__",
@@ -76,6 +103,29 @@ __all__ = [
     "ContextualMemorySummary",
     "MemoryRetriever",
     "MemoryConsolidator",
+    # Knowledge Graph & Gaps
+    "PrerequisiteDAG",
+    "ConceptNode",
+    "CyclicDependencyError",
+    "GapAnalyzer",
+    "RootCauseResult",
+    "GapSeverity",
+    "GapType",
+    "MisconceptionDetector",
+    "CandidateMisconception",
+    # Diagnostic Assessment
+    "QuestionType",
+    "DiagnosticDimension",
+    "DiagnosticSessionStatus",
+    "DiagnosticQuestion",
+    "DiagnosticSession",
+    "DiagnosticReport",
+    "DiagnosticEvidence",
+    "ObservedEvidence",
+    "InferredEvaluation",
+    "QuestionGenerator",
+    "AnswerEvaluator",
+    "DiagnosticEngine",
     # Learner Engines
     "MasteryEngine",
     "MasteryUpdateResult",

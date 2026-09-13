@@ -17,6 +17,14 @@ from tarkyaan.models.goals import LearningGoal
 from tarkyaan.models.mastery import Subject, Topic, TopicMastery
 from tarkyaan.models.gaps import KnowledgeGap, MisconceptionRecord
 from tarkyaan.models.assessment import AssessmentResult
+from tarkyaan.models.diagnostic import (
+    DiagnosticDimension,
+    DiagnosticQuestion,
+    DiagnosticReport,
+    DiagnosticSession,
+    DiagnosticSessionStatus,
+    QuestionType,
+)
 from tarkyaan.models.learning import (
     LearningPlan,
     LearningResource,
@@ -52,4 +60,10 @@ __all__ = [
     "ReplanningRecord",
     "ResourceEvaluationScore",
     "StudyPhase",
+    "QuestionType",
+    "DiagnosticDimension",
+    "DiagnosticSessionStatus",
+    "DiagnosticQuestion",
+    "DiagnosticSession",
+    "DiagnosticReport",
 ]

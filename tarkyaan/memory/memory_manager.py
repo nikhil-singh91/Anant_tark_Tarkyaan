@@ -322,6 +322,15 @@ class TarkyaanMemoryManager:
 
     def update_topic_mastery(self, mastery: TopicMastery) -> TopicMastery:
         mastery.updated_at = _utc_now()
+        subject_id = mastery.subject_id or "general"
+        self.store.execute(
+            "INSERT OR IGNORE INTO subjects (subject_id, name, domain) VALUES (?, ?, ?);",
+            (subject_id, subject_id.capitalize(), "general")
+        )
+        self.store.execute(
+            "INSERT OR IGNORE INTO topics (topic_id, subject_id, name, prerequisites) VALUES (?, ?, ?, ?);",
+            (mastery.topic_id, subject_id, mastery.name or mastery.topic_id, json.dumps(mastery.prerequisites))
+        )
         sql = """
         INSERT OR REPLACE INTO topic_mastery (
             learner_id, topic_id, subject_id, name, mastery_score, uncertainty,
