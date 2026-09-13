@@ -66,3 +66,55 @@ class EpistemicStatus(str, Enum):
     """Distinction between verified ground truth and model inference."""
     FACT = "fact"
     INFERENCE = "inference"
+
+
+class PlanStatus(str, Enum):
+    """Lifecycle statuses of a personalized learning plan."""
+    DRAFT = "draft"
+    PROPOSED = "proposed"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    SUPERSEDED = "superseded"
+
+
+class TaskType(str, Enum):
+    """Pedagogical inquiry and work types for atomic learning tasks."""
+    LEARN = "learn"
+    UNDERSTAND = "understand"
+    RECALL = "recall"
+    PRACTICE = "practice"
+    APPLY = "apply"
+    EXPLAIN = "explain"
+    COMPARE = "compare"
+    SOLVE = "solve"
+    DEBUG = "debug"
+    REVIEW = "review"
+    ASSESSMENT = "assessment"
+
+
+class LearningStrategy(str, Enum):
+    """Pedagogical ordering strategies for learning plans."""
+    PREREQUISITE_FIRST = "prerequisite_first"
+    GAP_FIRST = "gap_first"
+    FOUNDATION_FIRST = "foundation_first"
+    PRACTICE_HEAVY = "practice_heavy"
+    BALANCED = "balanced"
+    REVIEW_HEAVY = "review_heavy"
+    EXAM_FOCUSED = "exam_focused"
+    PROJECT_FOCUSED = "project_focused"
+
+
+class MilestoneStatus(str, Enum):
+    """Lifecycle state of a measurable curriculum milestone."""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    ACHIEVED = "achieved"
+
+
+class PlanValidationStatus(str, Enum):
+    """Deterministic validation state of a generated plan."""
+    VALID = "valid"
+    INVALID = "invalid"
+    WARNING = "warning"

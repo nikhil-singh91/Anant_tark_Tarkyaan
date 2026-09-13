@@ -66,6 +66,21 @@ from tarkyaan.assessment import (
     ObservedEvidence,
     QuestionGenerator,
 )
+from tarkyaan.planning import (
+    ConceptPriorityScore,
+    DecomposedGoal,
+    DependencyScheduler,
+    GoalDecomposer,
+    LearningPlanner,
+    MilestoneEngine,
+    PlanBuilder,
+    PlanValidator,
+    PriorityEngine,
+    ScheduledConcept,
+    StrategyDecision,
+    StrategyEngine,
+    WorkloadEngine,
+)
 
 __all__ = [
     "__version__",
@@ -131,4 +146,18 @@ __all__ = [
     "MasteryUpdateResult",
     "RetentionEngine",
     "LearnerModel",
+    # Planning Brain
+    "GoalDecomposer",
+    "DecomposedGoal",
+    "PriorityEngine",
+    "ConceptPriorityScore",
+    "StrategyEngine",
+    "StrategyDecision",
+    "DependencyScheduler",
+    "ScheduledConcept",
+    "WorkloadEngine",
+    "MilestoneEngine",
+    "PlanValidator",
+    "PlanBuilder",
+    "LearningPlanner",
 ]

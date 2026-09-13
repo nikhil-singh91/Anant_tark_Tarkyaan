@@ -306,6 +306,78 @@ class TarkyaanMemoryStore:
             access_count INTEGER NOT NULL DEFAULT 0
         );
 
+        -- 18. Learning Plans
+        CREATE TABLE IF NOT EXISTS learning_plans (
+            plan_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            goal_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            objective TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'proposed',
+            strategy TEXT NOT NULL DEFAULT 'balanced',
+            version INTEGER NOT NULL DEFAULT 1,
+            parent_plan_id TEXT,
+            revision_reason TEXT,
+            total_estimated_hours REAL NOT NULL DEFAULT 10.0,
+            estimated_total_minutes INTEGER NOT NULL DEFAULT 600,
+            priority INTEGER NOT NULL DEFAULT 3,
+            dependencies TEXT NOT NULL DEFAULT '{}',
+            assumptions TEXT NOT NULL DEFAULT '[]',
+            expected_outcomes TEXT NOT NULL DEFAULT '[]',
+            validation_status TEXT NOT NULL DEFAULT 'valid',
+            provenance TEXT NOT NULL DEFAULT '{}',
+            explanation TEXT NOT NULL DEFAULT '{}',
+            start_date TEXT,
+            target_date TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        -- 19. Study Phases
+        CREATE TABLE IF NOT EXISTS study_phases (
+            phase_id TEXT PRIMARY KEY,
+            plan_id TEXT NOT NULL REFERENCES learning_plans(plan_id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            title TEXT NOT NULL,
+            objective TEXT NOT NULL DEFAULT '',
+            concepts TEXT NOT NULL DEFAULT '[]',
+            prerequisite_phase_ids TEXT NOT NULL DEFAULT '[]',
+            task_ids TEXT NOT NULL DEFAULT '[]',
+            estimated_minutes INTEGER NOT NULL DEFAULT 0,
+            phase_order INTEGER NOT NULL DEFAULT 1,
+            completion_criteria TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'pending',
+            is_completed INTEGER NOT NULL DEFAULT 0
+        );
+
+        -- 20. Plan Milestones
+        CREATE TABLE IF NOT EXISTS plan_milestones (
+            milestone_id TEXT PRIMARY KEY,
+            plan_id TEXT NOT NULL REFERENCES learning_plans(plan_id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            objective TEXT NOT NULL DEFAULT '',
+            required_task_ids TEXT NOT NULL DEFAULT '[]',
+            required_concepts TEXT NOT NULL DEFAULT '[]',
+            completion_criteria TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'pending',
+            milestone_order INTEGER NOT NULL DEFAULT 1,
+            target_date TEXT,
+            achieved_at TEXT
+        );
+
+        -- 21. Plan Versions (Audit Trail)
+        CREATE TABLE IF NOT EXISTS plan_versions (
+            version_id TEXT PRIMARY KEY,
+            plan_id TEXT NOT NULL,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            change_reason TEXT NOT NULL DEFAULT '',
+            snapshot_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
         -- Indexes for fast isolated retrieval
         CREATE INDEX IF NOT EXISTS idx_goals_learner ON learning_goals(learner_id, is_active);
         CREATE INDEX IF NOT EXISTS idx_mastery_learner ON topic_mastery(learner_id, tier);
@@ -314,12 +386,40 @@ class TarkyaanMemoryStore:
         CREATE INDEX IF NOT EXISTS idx_assess_learner ON assessments(learner_id, topic_id);
         CREATE INDEX IF NOT EXISTS idx_sess_learner ON learning_sessions(learner_id, start_time);
         CREATE INDEX IF NOT EXISTS idx_tasks_learner ON learning_tasks(learner_id, status);
+        CREATE INDEX IF NOT EXISTS idx_plans_learner ON learning_plans(learner_id, status);
+        CREATE INDEX IF NOT EXISTS idx_phases_plan ON study_phases(plan_id, phase_order);
+        CREATE INDEX IF NOT EXISTS idx_milestones_plan ON plan_milestones(plan_id, milestone_order);
+        CREATE INDEX IF NOT EXISTS idx_plan_versions ON plan_versions(plan_id, version);
         CREATE INDEX IF NOT EXISTS idx_items_learner_type ON memory_items(learner_id, memory_type);
         CREATE INDEX IF NOT EXISTS idx_items_key ON memory_items(learner_id, key);
         """
         with self._lock:
             conn = self.get_connection()
             conn.executescript(schema_sql)
+
+            # Ensure optional extended columns for learning_tasks if upgraded
+            for col_name, col_type in [
+                ("plan_id", "TEXT"),
+                ("phase_id", "TEXT"),
+                ("concept_id", "TEXT NOT NULL DEFAULT ''"),
+                ("description", "TEXT NOT NULL DEFAULT ''"),
+                ("task_type", "TEXT NOT NULL DEFAULT 'practice'"),
+                ("objective", "TEXT NOT NULL DEFAULT ''"),
+                ("difficulty", "INTEGER NOT NULL DEFAULT 2"),
+                ("priority", "REAL NOT NULL DEFAULT 1.0"),
+                ("prerequisite_task_ids", "TEXT NOT NULL DEFAULT '[]'"),
+                ("prerequisite_concept_ids", "TEXT NOT NULL DEFAULT '[]'"),
+                ("expected_evidence", "TEXT NOT NULL DEFAULT ''"),
+                ("completion_criteria", "TEXT NOT NULL DEFAULT '[]'"),
+                ("mastery_target", "REAL NOT NULL DEFAULT 0.70"),
+                ("task_order", "INTEGER NOT NULL DEFAULT 1"),
+                ("rationale", "TEXT NOT NULL DEFAULT ''"),
+                ("resource_ids", "TEXT NOT NULL DEFAULT '[]'"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE learning_tasks ADD COLUMN {col_name} {col_type};")
+                except Exception:
+                    pass
 
 
 class _TransactionContext:

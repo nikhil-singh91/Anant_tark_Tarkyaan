@@ -17,16 +17,29 @@ from tarkyaan.models.assessment import AssessmentResult
 from tarkyaan.models.enums import (
     AutonomyLevel,
     EpistemicStatus,
+    LearningStrategy,
     MasteryTier,
     MemorySource,
     MemoryType,
+    MilestoneStatus,
     MisconceptionCategory,
+    PlanStatus,
+    PlanValidationStatus,
+    TaskStatus,
+    TaskType,
 )
 from tarkyaan.models.gaps import KnowledgeGap, MisconceptionRecord
 from tarkyaan.models.goals import LearningGoal
 from tarkyaan.models.learner import LearnerProfile
 from tarkyaan.models.learning import LearningSession, ProgressSnapshot
 from tarkyaan.models.mastery import Subject, Topic, TopicMastery
+from tarkyaan.models.planning import (
+    LearningPlan,
+    LearningTask,
+    Milestone,
+    PlanExplanation,
+    StudyPhase,
+)
 
 
 def _iso(dt: Optional[datetime]) -> Optional[str]:
@@ -189,6 +202,26 @@ class TarkyaanMemoryManager:
             ))
         return goals
 
+    def get_goal(self, goal_id: str) -> Optional[LearningGoal]:
+        row = self.store.fetchone("SELECT * FROM learning_goals WHERE goal_id = ?;", (goal_id,))
+        if not row:
+            return None
+        return LearningGoal(
+            goal_id=row["goal_id"],
+            learner_id=row["learner_id"],
+            title=row["title"],
+            target_outcome=row["target_outcome"],
+            deadline=_parse_dt(row["deadline"]),
+            priority=row["priority"],
+            target_level=row["target_level"],
+            daily_hours=row["daily_hours"],
+            milestones=json.loads(row["milestones"] or "[]"),
+            is_active=bool(row["is_active"]),
+            created_at=_parse_dt(row["created_at"]) or _utc_now(),
+            updated_at=_parse_dt(row["updated_at"]) or _utc_now(),
+            completed_at=_parse_dt(row["completed_at"]),
+        )
+
     def update_goal(self, goal: LearningGoal) -> LearningGoal:
         goal.updated_at = _utc_now()
         sql = """
@@ -320,6 +353,9 @@ class TarkyaanMemoryManager:
             ))
         return items
 
+    def get_all_topic_mastery(self, learner_id: str) -> List[TopicMastery]:
+        return self.list_topic_mastery(learner_id)
+
     def update_topic_mastery(self, mastery: TopicMastery) -> TopicMastery:
         mastery.updated_at = _utc_now()
         subject_id = mastery.subject_id or "general"
@@ -381,6 +417,26 @@ class TarkyaanMemoryManager:
 
     def get_active_gaps(self, learner_id: str) -> List[KnowledgeGap]:
         sql = "SELECT * FROM knowledge_gaps WHERE learner_id = ? AND resolved = 0 ORDER BY detected_at DESC;"
+        rows = self.store.fetchall(sql, (learner_id,))
+        gaps: List[KnowledgeGap] = []
+        for r in rows:
+            gaps.append(KnowledgeGap(
+                gap_id=r["gap_id"],
+                learner_id=r["learner_id"],
+                concept_id=r["concept_id"],
+                blocking_topic_id=r["blocking_topic_id"],
+                severity=r["severity"],
+                diagnostic_evidence=r["diagnostic_evidence"],
+                detected_at=_parse_dt(r["detected_at"]) or _utc_now(),
+                resolved=bool(r["resolved"]),
+                resolved_at=_parse_dt(r["resolved_at"])
+            ))
+        return gaps
+
+    def get_knowledge_gaps(self, learner_id: str, active_only: bool = True) -> List[KnowledgeGap]:
+        if active_only:
+            return self.get_active_gaps(learner_id)
+        sql = "SELECT * FROM knowledge_gaps WHERE learner_id = ? ORDER BY detected_at DESC;"
         rows = self.store.fetchall(sql, (learner_id,))
         gaps: List[KnowledgeGap] = []
         for r in rows:
@@ -674,3 +730,328 @@ class TarkyaanMemoryManager:
         sql = "DELETE FROM memory_items WHERE memory_id = ? AND learner_id = ?;"
         cur = self.store.execute(sql, (memory_id, learner_id))
         return cur.rowcount > 0
+
+    # =========================================================================
+    # 9. LEARNING PLANS & ROADMAP PERSISTENCE
+    # =========================================================================
+
+    def save_learning_plan(self, plan: LearningPlan) -> LearningPlan:
+        """
+        Thread-safely persist a LearningPlan, its study phases, milestones, and tasks.
+        """
+        plan.updated_at = _utc_now()
+        explanation_json = plan.explanation.model_dump_json() if plan.explanation else "{}"
+        provenance_json = json.dumps(plan.provenance)
+        dependencies_json = json.dumps(plan.dependencies)
+        assumptions_json = json.dumps(plan.assumptions)
+        outcomes_json = json.dumps(plan.expected_outcomes)
+
+        with self.store.transaction():
+            # 1. Insert or update plan header
+            sql_plan = """
+            INSERT OR REPLACE INTO learning_plans (
+                plan_id, learner_id, goal_id, title, description, objective,
+                status, strategy, version, parent_plan_id, revision_reason,
+                total_estimated_hours, estimated_total_minutes, priority,
+                dependencies, assumptions, expected_outcomes, validation_status,
+                provenance, explanation, start_date, target_date, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+            self.store.execute(sql_plan, (
+                plan.plan_id,
+                plan.learner_id,
+                plan.goal_id,
+                plan.title,
+                plan.description,
+                plan.objective,
+                plan.status.value,
+                plan.strategy.value,
+                plan.version,
+                plan.parent_plan_id,
+                plan.revision_reason,
+                plan.total_estimated_hours,
+                plan.estimated_total_minutes,
+                plan.priority,
+                dependencies_json,
+                assumptions_json,
+                outcomes_json,
+                plan.validation_status.value,
+                provenance_json,
+                explanation_json,
+                _iso(plan.start_date),
+                _iso(plan.target_date),
+                _iso(plan.created_at),
+                _iso(plan.updated_at)
+            ))
+
+            # 2. Re-create study phases for this plan
+            self.store.execute("DELETE FROM study_phases WHERE plan_id = ?;", (plan.plan_id,))
+            for phase in plan.phases:
+                phase.plan_id = plan.plan_id
+                sql_phase = """
+                INSERT INTO study_phases (
+                    phase_id, plan_id, name, title, objective, concepts,
+                    prerequisite_phase_ids, task_ids, estimated_minutes,
+                    phase_order, completion_criteria, status, is_completed
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """
+                self.store.execute(sql_phase, (
+                    phase.phase_id,
+                    phase.plan_id,
+                    phase.name or phase.title,
+                    phase.title or phase.name,
+                    phase.objective,
+                    json.dumps(phase.concepts),
+                    json.dumps(phase.prerequisite_phase_ids),
+                    json.dumps(phase.task_ids),
+                    phase.estimated_minutes,
+                    phase.phase_order,
+                    json.dumps(phase.completion_criteria),
+                    phase.status,
+                    1 if phase.is_completed else 0
+                ))
+
+            # 3. Re-create plan milestones
+            self.store.execute("DELETE FROM plan_milestones WHERE plan_id = ?;", (plan.plan_id,))
+            for ms in plan.milestones:
+                ms.plan_id = plan.plan_id
+                sql_ms = """
+                INSERT INTO plan_milestones (
+                    milestone_id, plan_id, title, objective, required_task_ids,
+                    required_concepts, completion_criteria, status, milestone_order,
+                    target_date, achieved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """
+                self.store.execute(sql_ms, (
+                    ms.milestone_id,
+                    ms.plan_id,
+                    ms.title,
+                    ms.objective,
+                    json.dumps(ms.required_task_ids),
+                    json.dumps(ms.required_concepts),
+                    json.dumps(ms.completion_criteria),
+                    ms.status.value,
+                    ms.milestone_order,
+                    _iso(ms.target_date),
+                    _iso(ms.achieved_at)
+                ))
+
+            # 4. Save tasks
+            for task in plan.tasks:
+                task.plan_id = plan.plan_id
+                task.learner_id = plan.learner_id
+                sql_task = """
+                INSERT OR REPLACE INTO learning_tasks (
+                    task_id, plan_id, phase_id, learner_id, goal_id, topic_id,
+                    concept_id, title, description, task_type, objective,
+                    difficulty, estimated_minutes, priority, prerequisite_task_ids,
+                    prerequisite_concept_ids, expected_evidence, completion_criteria,
+                    mastery_target, task_order, status, rationale, resource_ids,
+                    parameters, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """
+                self.store.execute(sql_task, (
+                    task.task_id,
+                    task.plan_id,
+                    task.phase_id,
+                    task.learner_id,
+                    task.goal_id or plan.goal_id,
+                    task.topic_id or task.concept_id,
+                    task.concept_id or task.topic_id,
+                    task.title,
+                    task.description,
+                    task.task_type.value,
+                    task.objective,
+                    task.difficulty,
+                    task.estimated_minutes,
+                    task.priority,
+                    json.dumps(task.prerequisite_task_ids),
+                    json.dumps(task.prerequisite_concept_ids),
+                    task.expected_evidence,
+                    json.dumps(task.completion_criteria),
+                    task.mastery_target,
+                    task.task_order,
+                    task.status.value,
+                    task.rationale,
+                    json.dumps(task.resource_ids),
+                    json.dumps(task.parameters),
+                    _iso(task.completed_at)
+                ))
+
+        return plan
+
+    def get_learning_plan(self, plan_id: str) -> Optional[LearningPlan]:
+        """
+        Reassemble a complete LearningPlan from normalized tables.
+        """
+        row = self.store.fetchone("SELECT * FROM learning_plans WHERE plan_id = ?;", (plan_id,))
+        if not row:
+            return None
+
+        # Fetch tasks
+        t_rows = self.store.fetchall("SELECT * FROM learning_tasks WHERE plan_id = ? ORDER BY task_order ASC;", (plan_id,))
+        tasks: List[LearningTask] = []
+        for tr in t_rows:
+            tasks.append(LearningTask(
+                task_id=tr["task_id"],
+                plan_id=tr["plan_id"],
+                phase_id=tr["phase_id"],
+                learner_id=tr["learner_id"],
+                goal_id=tr["goal_id"],
+                topic_id=tr["topic_id"] or tr["concept_id"],
+                concept_id=tr["concept_id"] or tr["topic_id"],
+                title=tr["title"],
+                description=tr["description"] or "",
+                task_type=TaskType(tr["task_type"]) if tr["task_type"] in TaskType.__members__.values() else TaskType.PRACTICE,
+                objective=tr["objective"] or "",
+                difficulty=tr["difficulty"] or 2,
+                estimated_minutes=tr["estimated_minutes"] or 30,
+                priority=tr["priority"] or 1.0,
+                prerequisite_task_ids=json.loads(tr["prerequisite_task_ids"] or "[]"),
+                prerequisite_concept_ids=json.loads(tr["prerequisite_concept_ids"] or "[]"),
+                expected_evidence=tr["expected_evidence"] or "",
+                completion_criteria=json.loads(tr["completion_criteria"] or "[]"),
+                mastery_target=tr["mastery_target"] or 0.70,
+                task_order=tr["task_order"] or 1,
+                status=TaskStatus(tr["status"]) if tr["status"] in TaskStatus.__members__.values() else TaskStatus.PENDING,
+                rationale=tr["rationale"] or "",
+                resource_ids=json.loads(tr["resource_ids"] or "[]"),
+                parameters=json.loads(tr["parameters"] or "{}"),
+                completed_at=_parse_dt(tr["completed_at"])
+            ))
+
+        task_map = {t.task_id: t for t in tasks}
+
+        # Fetch phases
+        p_rows = self.store.fetchall("SELECT * FROM study_phases WHERE plan_id = ? ORDER BY phase_order ASC;", (plan_id,))
+        phases: List[StudyPhase] = []
+        for pr in p_rows:
+            t_ids = json.loads(pr["task_ids"] or "[]")
+            phase_tasks = [task_map[tid] for tid in t_ids if tid in task_map]
+            # Also catch tasks matching phase_id
+            if not phase_tasks:
+                phase_tasks = [t for t in tasks if t.phase_id == pr["phase_id"]]
+            phases.append(StudyPhase(
+                phase_id=pr["phase_id"],
+                plan_id=pr["plan_id"],
+                name=pr["name"],
+                title=pr["title"],
+                objective=pr["objective"] or "",
+                concepts=json.loads(pr["concepts"] or "[]"),
+                prerequisite_phase_ids=json.loads(pr["prerequisite_phase_ids"] or "[]"),
+                task_ids=t_ids or [t.task_id for t in phase_tasks],
+                tasks=phase_tasks,
+                estimated_minutes=pr["estimated_minutes"] or 0,
+                phase_order=pr["phase_order"] or 1,
+                completion_criteria=json.loads(pr["completion_criteria"] or "[]"),
+                status=pr["status"] or "pending",
+                is_completed=bool(pr["is_completed"])
+            ))
+
+        # Fetch milestones
+        m_rows = self.store.fetchall("SELECT * FROM plan_milestones WHERE plan_id = ? ORDER BY milestone_order ASC;", (plan_id,))
+        milestones: List[Milestone] = []
+        for mr in m_rows:
+            milestones.append(Milestone(
+                milestone_id=mr["milestone_id"],
+                plan_id=mr["plan_id"],
+                title=mr["title"],
+                objective=mr["objective"] or "",
+                required_task_ids=json.loads(mr["required_task_ids"] or "[]"),
+                required_concepts=json.loads(mr["required_concepts"] or "[]"),
+                completion_criteria=json.loads(mr["completion_criteria"] or "[]"),
+                status=MilestoneStatus(mr["status"]) if mr["status"] in MilestoneStatus.__members__.values() else MilestoneStatus.PENDING,
+                milestone_order=mr["milestone_order"] or 1,
+                target_date=_parse_dt(mr["target_date"]),
+                achieved_at=_parse_dt(mr["achieved_at"])
+            ))
+
+        # Deserialize explanation
+        explanation = None
+        if row["explanation"]:
+            try:
+                exp_dict = json.loads(row["explanation"])
+                if exp_dict:
+                    explanation = PlanExplanation(**exp_dict)
+            except Exception:
+                pass
+
+        return LearningPlan(
+            plan_id=row["plan_id"],
+            learner_id=row["learner_id"],
+            goal_id=row["goal_id"],
+            title=row["title"],
+            description=row["description"] or "",
+            objective=row["objective"] or "",
+            status=PlanStatus(row["status"]) if row["status"] in PlanStatus.__members__.values() else PlanStatus.PROPOSED,
+            strategy=LearningStrategy(row["strategy"]) if row["strategy"] in LearningStrategy.__members__.values() else LearningStrategy.BALANCED,
+            version=row["version"] or 1,
+            parent_plan_id=row["parent_plan_id"],
+            revision_reason=row["revision_reason"],
+            phases=phases,
+            milestones=milestones,
+            tasks=tasks,
+            dependencies=json.loads(row["dependencies"] or "{}"),
+            assumptions=json.loads(row["assumptions"] or "[]"),
+            expected_outcomes=json.loads(row["expected_outcomes"] or "[]"),
+            validation_status=PlanValidationStatus(row["validation_status"]) if row["validation_status"] in PlanValidationStatus.__members__.values() else PlanValidationStatus.VALID,
+            provenance=json.loads(row["provenance"] or "{}"),
+            explanation=explanation,
+            total_estimated_hours=row["total_estimated_hours"] or 0.0,
+            estimated_total_minutes=row["estimated_total_minutes"] or 0,
+            priority=row["priority"] or 3,
+            start_date=_parse_dt(row["start_date"]),
+            target_date=_parse_dt(row["target_date"]),
+            created_at=_parse_dt(row["created_at"]) or _utc_now(),
+            updated_at=_parse_dt(row["updated_at"]) or _utc_now()
+        )
+
+    def get_active_learning_plan(self, learner_id: str) -> Optional[LearningPlan]:
+        """Fetch the current active (or most recent proposed/active) plan for a learner."""
+        sql = """
+        SELECT plan_id FROM learning_plans
+        WHERE learner_id = ? AND status IN ('active', 'proposed')
+        ORDER BY updated_at DESC LIMIT 1;
+        """
+        row = self.store.fetchone(sql, (learner_id,))
+        if not row:
+            return None
+        return self.get_learning_plan(row["plan_id"])
+
+    def list_learning_plans(self, learner_id: str) -> List[LearningPlan]:
+        """Return all historical and active plans for a learner."""
+        sql = "SELECT plan_id FROM learning_plans WHERE learner_id = ? ORDER BY version DESC, updated_at DESC;"
+        rows = self.store.fetchall(sql, (learner_id,))
+        plans: List[LearningPlan] = []
+        for r in rows:
+            p = self.get_learning_plan(r["plan_id"])
+            if p:
+                plans.append(p)
+        return plans
+
+    def update_plan_status(self, plan_id: str, status: PlanStatus) -> None:
+        """Update plan status flag."""
+        now = _iso(_utc_now())
+        sql = "UPDATE learning_plans SET status = ?, updated_at = ? WHERE plan_id = ?;"
+        self.store.execute(sql, (status.value, now, plan_id))
+
+    def archive_plan_version(self, plan: LearningPlan, change_reason: str) -> None:
+        """Store immutable snapshot of plan version in audit trail."""
+        version_id = f"pv_{uuid.uuid4().hex[:8]}"
+        now = _iso(_utc_now())
+        snapshot_json = plan.model_dump_json()
+        sql = """
+        INSERT INTO plan_versions (
+            version_id, plan_id, learner_id, version, status, change_reason, snapshot_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        self.store.execute(sql, (
+            version_id, plan.plan_id, plan.learner_id, plan.version,
+            plan.status.value, change_reason, snapshot_json, now
+        ))
+
+    def get_plan_version_history(self, plan_id: str) -> List[Dict[str, Any]]:
+        """Return full version change history for a plan."""
+        sql = "SELECT * FROM plan_versions WHERE plan_id = ? ORDER BY version ASC, created_at ASC;"
+        rows = self.store.fetchall(sql, (plan_id,))
+        return [dict(r) for r in rows]

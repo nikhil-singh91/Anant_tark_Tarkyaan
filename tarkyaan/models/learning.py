@@ -10,47 +10,19 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from tarkyaan.models.enums import TaskStatus
+from tarkyaan.models.planning import (
+    LearningPlan,
+    LearningTask,
+    Milestone,
+    PlanExplanation,
+    PlanValidationResult,
+    StudyPhase,
+    WorkloadEstimate,
+)
 
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-class LearningTask(BaseModel):
-    """Atomic study unit within a session or study phase."""
-    task_id: str = Field(default_factory=lambda: f"task_{uuid.uuid4().hex[:8]}")
-    goal_id: Optional[str] = None
-    title: str = Field(..., min_length=2)
-    topic_id: str
-    estimated_minutes: int = Field(default=30, ge=5, le=360)
-    status: TaskStatus = Field(default=TaskStatus.PENDING)
-    parameters: Dict[str, Any] = Field(default_factory=dict)
-    completed_at: Optional[datetime] = None
-
-    def complete(self) -> None:
-        self.status = TaskStatus.COMPLETED
-        self.completed_at = _utc_now()
-
-
-class StudyPhase(BaseModel):
-    """Milestone block grouping multiple learning tasks."""
-    phase_id: str = Field(default_factory=lambda: f"phase_{uuid.uuid4().hex[:8]}")
-    name: str = Field(..., min_length=2)
-    milestone_order: int = Field(default=1)
-    tasks: List[LearningTask] = Field(default_factory=list)
-    is_completed: bool = Field(default=False)
-
-
-class LearningPlan(BaseModel):
-    """Curriculum roadmap tailored to a goal."""
-    plan_id: str = Field(default_factory=lambda: f"plan_{uuid.uuid4().hex[:8]}")
-    learner_id: str
-    goal_id: str
-    title: str
-    phases: List[StudyPhase] = Field(default_factory=list)
-    total_estimated_hours: float = Field(default=10.0, ge=0.5)
-    created_at: datetime = Field(default_factory=_utc_now)
-    updated_at: datetime = Field(default_factory=_utc_now)
 
 
 class LearningSession(BaseModel):

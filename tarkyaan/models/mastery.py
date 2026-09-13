@@ -5,8 +5,8 @@ Topic Mastery and Curriculum Models.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, List, Optional
+from pydantic import BaseModel, Field, model_validator
 
 from tarkyaan.models.enums import MasteryTier
 
@@ -39,7 +39,16 @@ class TopicMastery(BaseModel):
     learner_id: str = Field(..., description="Foreign key reference to learner")
     topic_id: str = Field(..., description="Unique concept slug")
     subject_id: str = Field(default="general", description="Parent subject identifier")
-    name: str = Field(..., description="Display name of topic")
+    name: str = Field(default="", description="Display name of topic")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_name(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if not values.get("name") and values.get("topic_id"):
+                values["name"] = values["topic_id"].replace("_", " ").title()
+        return values
+
     mastery_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Bayesian mastery probability M(c)")
     uncertainty: float = Field(default=1.0, ge=0.0, le=1.0, description="Epistemic uncertainty U(c)")
     tier: MasteryTier = Field(default=MasteryTier.UNEXPLORED)
