@@ -7,7 +7,7 @@ phase construction, task generation, and milestone synthesis.
 import pytest
 
 from tarkyaan.knowledge.prerequisite_graph import PrerequisiteDAG
-from tarkyaan.models.enums import LearningStrategy, PlanValidationStatus
+from tarkyaan.models.enums import LearningStrategy, PlanValidationStatus, TaskType
 from tarkyaan.models.gaps import KnowledgeGap
 from tarkyaan.models.goals import LearningGoal
 from tarkyaan.models.learner import LearnerProfile
@@ -102,3 +102,82 @@ class TestPlanBuilder:
             # All array tasks should be review / brief
             for t in array_tasks:
                 assert t.estimated_minutes <= 30
+
+    def test_nikhil_competitive_programming_acceptance_scenario(self):
+        """
+        Acceptance Test from Section 26:
+        Learner: Nikhil
+        Goal: 'Become strong at DSA for competitive programming'
+        Knowledge: Arrays strong, Strings moderate, Hashing weak, Recursion weak, Trees unknown, Graphs unknown.
+        Gaps: Hashing fundamentals, Recursion fundamentals, Tree foundations.
+        Prerequisites: Recursion -> Trees -> Graphs; Hashing -> frequency patterns.
+        """
+        learner = LearnerProfile(
+            display_name="Nikhil",
+            primary_domain="Computer Science / DSA",
+            preferred_language="C++",
+            daily_time_budget_minutes=85  # ~10 hours/week
+        )
+        goal = LearningGoal(
+            learner_id=learner.learner_id,
+            title="Become strong at DSA for competitive programming",
+            target_outcome="Solve medium and hard competitive programming problems in C++"
+        )
+        dag = PrerequisiteDAG()
+        dag.add_concept("arrays", "Arrays", "dsa")
+        dag.add_concept("strings", "Strings", "dsa")
+        dag.add_concept("hashing", "Hashing", "dsa")
+        dag.add_concept("recursion", "Recursion", "dsa")
+        dag.add_concept("trees", "Trees", "dsa")
+        dag.add_concept("graphs", "Graphs", "dsa")
+        dag.add_prerequisite("hashing", "arrays")
+        dag.add_prerequisite("trees", "recursion")
+        dag.add_prerequisite("graphs", "trees")
+
+        masteries = {
+            "arrays": TopicMastery(learner_id=learner.learner_id, topic_id="arrays", mastery_score=0.92, uncertainty=0.15),
+            "strings": TopicMastery(learner_id=learner.learner_id, topic_id="strings", mastery_score=0.60, uncertainty=0.30),
+            "hashing": TopicMastery(learner_id=learner.learner_id, topic_id="hashing", mastery_score=0.30, uncertainty=0.50),
+            "recursion": TopicMastery(learner_id=learner.learner_id, topic_id="recursion", mastery_score=0.25, uncertainty=0.60),
+        }
+
+        gaps = [
+            KnowledgeGap(learner_id=learner.learner_id, concept_id="hashing", blocking_topic_id="frequency_patterns", severity="high", diagnostic_evidence="Hashing collision confusion"),
+            KnowledgeGap(learner_id=learner.learner_id, concept_id="recursion", blocking_topic_id="trees", severity="high", diagnostic_evidence="Base case and recursive branching misunderstanding"),
+            KnowledgeGap(learner_id=learner.learner_id, concept_id="trees", blocking_topic_id="graphs", severity="medium", diagnostic_evidence="Tree pointer manipulation gap"),
+        ]
+
+        plan = PlanBuilder.build(
+            learner=learner,
+            goal=goal,
+            mastery_map=masteries,
+            gaps=gaps,
+            dag=dag
+        )
+
+        # 1. Verify structured plan existence
+        assert plan.learner_id == learner.learner_id
+        assert len(plan.phases) >= 2
+        assert len(plan.tasks) >= 5
+        assert len(plan.milestones) >= 2
+
+        # 2. Verify topological order: recursion must precede trees
+        task_concept_order = [t.concept_id for t in plan.tasks]
+        assert "recursion" in task_concept_order
+        assert "trees" in task_concept_order
+        assert task_concept_order.index("recursion") < task_concept_order.index("trees")
+
+        # 3. Verify Arrays (strong mastery) did not receive heavy instruction
+        array_tasks = [t for t in plan.tasks if t.concept_id == "arrays"]
+        for at in array_tasks:
+            assert at.task_type != TaskType.LEARN
+
+        # 4. Verify Milestones exist with clear criteria
+        assert any("Competency" in m.title or "Capstone" in m.title for m in plan.milestones)
+
+        # 5. Verify Structured Explanation rationale
+        assert plan.explanation is not None
+        exp_text = str(plan.explanation.model_dump()).lower()
+        assert "recursion" in exp_text
+        assert "hashing" in exp_text
+        assert plan.validation_status in (PlanValidationStatus.VALID, PlanValidationStatus.WARNING)
