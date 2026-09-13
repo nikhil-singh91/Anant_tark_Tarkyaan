@@ -103,7 +103,7 @@ class GoalDecomposer:
             # If no direct matches, use terminal leaves or all concepts from DAG
             if not target_concepts and all_dag_concepts:
                 leaves = dag.get_leaves()
-                target_concepts = leaves if leaves else list(all_dag_concepts.keys())[:5]
+                target_concepts = leaves if leaves else all_dag_concepts[:5]
 
             # Collect prerequisite concepts from ancestors in DAG
             for tc in target_concepts:

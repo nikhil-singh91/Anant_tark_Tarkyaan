@@ -23,6 +23,9 @@ dev = [
     "ruff>=0.9.0",
 ]
 
+[project.scripts]
+tarkyaan = "tarkyaan.__main__:main"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

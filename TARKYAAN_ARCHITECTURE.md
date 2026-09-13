@@ -222,8 +222,10 @@ tarkyaan/
 │   ├── progress_evaluator.py     # Quantifies learning velocity and retention trends
 │   └── adaptation_engine.py      # Triggers curriculum adjustments when drift is detected
 │
-├── memory/                        # NOVA Memory Bridge
-│   └── memory_adapter.py         # Adapts Tarkyaan state to NOVA MemoryManager (EDUCATION/GOALS)
+├── memory/                        # Independent Tarkyaan Memory Engine
+│   ├── memory_store.py           # SQLite transactional store with learner isolation
+│   ├── memory_manager.py         # Persistent CRUD and state lifecycle management
+│   └── memory_retriever.py       # Contextual retrieval and token budgeting
 │
 ├── autonomy/                      # Governance & Supervision
 │   └── autonomy_controller.py    # Enforces Autonomy Levels 0 through 5 with safety gates

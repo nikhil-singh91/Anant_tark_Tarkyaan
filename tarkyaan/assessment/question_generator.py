@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from tarkyaan.knowledge.prerequisite_graph import PrerequisiteDAG
 from tarkyaan.models.diagnostic import (

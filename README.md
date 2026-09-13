@@ -66,7 +66,7 @@ All architectural blueprints, integration contracts, data models, and audit reco
 | **5** | [**TARKYAAN_LEARNER_MODEL.md**](./TARKYAAN_LEARNER_MODEL.md) | Cognitive graph, Bayesian mastery estimation, prerequisite DAG traversal, and misconception taxonomy. |
 | **6** | [**TARKYAAN_LEARNING_MODEL.md**](./TARKYAAN_LEARNING_MODEL.md) | Pedagogical philosophy, the 5 tiers of mastery (Exposure $\to$ Mastery), and resource scoring. |
 | **7** | [**TARKYAAN_AUTONOMY_MODEL.md**](./TARKYAAN_AUTONOMY_MODEL.md) | 6 Autonomy Levels (Levels 0 through 5), safety guardrails, permission boundaries, and cancellation. |
-| **8** | [**TARKYAAN_DATA_MODEL.md**](./TARKYAAN_DATA_MODEL.md) | Strongly typed Pydantic v2 schemas for all entities and atomic persistence bindings to NOVA memory. |
+| **8** | [**TARKYAAN_DATA_MODEL.md**](./TARKYAAN_DATA_MODEL.md) | Strongly typed Pydantic v2 schemas for all entities and atomic persistence in Tarkyaan independent memory. |
 | **9** | [**TARKYAAN_EVENT_MODEL.md**](./TARKYAAN_EVENT_MODEL.md) | 17-event educational event catalog, typed payload schemas, UI WebSocket broadcast, and telemetry. |
 | **10** | [**TARKYAAN_UI_VISION.md**](./TARKYAAN_UI_VISION.md) | Learning Cockpit UI screens, dynamic avatar orb visual states, and tailored HSL dark mode tokens. |
 | **11** | [**TARKYAAN_ROADMAP.md**](./TARKYAAN_ROADMAP.md) | 8-phase engineering plan, Grand Hackathon demonstration script, and quantitative validation metrics. |

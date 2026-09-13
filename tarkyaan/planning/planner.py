@@ -23,9 +23,11 @@ class LearningPlanner:
     def __init__(
         self,
         memory: Optional[TarkyaanMemoryManager] = None,
+        memory_manager: Optional[TarkyaanMemoryManager] = None,
         dag: Optional[PrerequisiteDAG] = None
     ) -> None:
-        self.memory = memory or TarkyaanMemoryManager()
+        self.memory = memory or memory_manager or TarkyaanMemoryManager()
+        self.memory_manager = self.memory
         self.dag = dag
 
     def plan_goal(

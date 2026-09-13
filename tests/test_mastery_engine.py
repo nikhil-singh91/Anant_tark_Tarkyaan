@@ -44,6 +44,7 @@ class TestMasteryEngine:
         # As student solves multiple problems successfully, mastery rises and uncertainty drops
         m = 0.0
         u = 1.0
+        res = None
         for _ in range(10):
             res = MasteryEngine.calculate_update(
                 current_mastery=m,
@@ -57,6 +58,7 @@ class TestMasteryEngine:
 
         assert m > 0.85
         assert u < 0.1
+        assert res is not None
         assert res.new_tier in (MasteryTier.COMPETENT, MasteryTier.MASTERED)
 
     def test_failed_evidence_reduces_mastery(self):

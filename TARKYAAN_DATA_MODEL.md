@@ -5,7 +5,7 @@
 
 ## 1. Domain Entities Overview
 
-All data in Tarkyaan is strongly typed using **Pydantic v2** models, ensuring runtime validation, JSON serialization safety, and schema synchronization with NOVA's atomic storage engine.
+All data in Tarkyaan is strongly typed using **Pydantic v2** models, ensuring runtime validation, JSON serialization safety, and schema synchronization with Tarkyaan's independent atomic SQLite storage engine.
 
 ```
 Tarkyaan Core Entity Hierarchy:
@@ -236,10 +236,10 @@ class ReplanningRecord(BaseModel):
 
 ---
 
-## 4. Vector Store Document Schemas
-
-Educational reference texts, notes, and problem statements are embedded into NOVA's `VectorStore` (ChromaDB with in-memory mock fallback) with structured metadata:
-
+## 4. Contextual Knowledge & Reference Schemas
+ 
+Educational reference texts, notes, and problem statements are indexed independently within Tarkyaan's memory system with structured metadata:
+ 
 ```json
 {
   "document_id": "doc_recursion_backtracking_notes_001",
@@ -253,4 +253,4 @@ Educational reference texts, notes, and problem statements are embedded into NOV
   }
 }
 ```
-Queries use semantic distance filtered by `{"subsystem": "tarkyaan", "topic_id": active_topic}` to ensure high precision.
+Queries use topic-anchored filtering (`topic_id: active_topic`) to ensure high precision and strict learner isolation.

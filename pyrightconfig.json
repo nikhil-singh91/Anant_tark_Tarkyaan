@@ -1,0 +1,11 @@
+{
+  "include": [
+    "tarkyaan",
+    "tests"
+  ],
+  "venvPath": "..",
+  "venv": "NOVA_SETUP/.venv",
+  "extraPaths": [
+    "."
+  ]
+}
