@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tarkyaan"
+version = "0.1.0"
+description = "Tarkyaan (तर्कयान) — Autonomous Learning Companion"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [
+    { name = "Nikhil Singh" }
+]
+dependencies = [
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.7.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.9.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.setuptools.packages.find]
+include = ["tarkyaan*"]

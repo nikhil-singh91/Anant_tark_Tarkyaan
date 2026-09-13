@@ -1,0 +1,343 @@
+"""
+Tarkyaan Persistent SQLite Storage Engine.
+Provides schema creation, thread-safe connection pooling, foreign keys,
+and transactional data integrity for Tarkyaan's independent memory.
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+import threading
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+
+class TarkyaanMemoryStore:
+    """
+    SQLite persistent storage engine for Tarkyaan.
+    Completely independent of NOVA.
+    """
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        """
+        Initialize the database store.
+        :param db_path: Path to the SQLite database file, or ':memory:' for transient storage.
+        """
+        self.db_path = str(db_path)
+        self._lock = threading.RLock()
+        self._conn: Optional[sqlite3.Connection] = None
+
+        if self.db_path != ":memory:":
+            p = Path(self.db_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+
+        self._initialize_database()
+
+    def get_connection(self) -> sqlite3.Connection:
+        """Get or initialize the thread-safe connection."""
+        with self._lock:
+            if self._conn is None:
+                self._conn = sqlite3.connect(
+                    self.db_path,
+                    check_same_thread=False,
+                    timeout=30.0,
+                    isolation_level=None  # autocommit by default unless explicit transaction
+                )
+                self._conn.row_factory = sqlite3.Row
+                self._conn.execute("PRAGMA foreign_keys = ON;")
+                if self.db_path != ":memory:":
+                    self._conn.execute("PRAGMA journal_mode = WAL;")
+                    self._conn.execute("PRAGMA synchronous = NORMAL;")
+            return self._conn
+
+    def close(self) -> None:
+        """Close the database connection safely."""
+        with self._lock:
+            if self._conn is not None:
+                self._conn.close()
+                self._conn = None
+
+    def execute(self, sql: str, params: Tuple[Any, ...] | Dict[str, Any] = ()) -> sqlite3.Cursor:
+        """Thread-safely execute a SQL statement."""
+        with self._lock:
+            conn = self.get_connection()
+            return conn.execute(sql, params)
+
+    def executemany(self, sql: str, params_seq: List[Tuple[Any, ...]]) -> sqlite3.Cursor:
+        """Thread-safely execute batch SQL statements."""
+        with self._lock:
+            conn = self.get_connection()
+            return conn.executemany(sql, params_seq)
+
+    def fetchone(self, sql: str, params: Tuple[Any, ...] | Dict[str, Any] = ()) -> Optional[sqlite3.Row]:
+        """Execute and fetch a single row."""
+        with self._lock:
+            cur = self.execute(sql, params)
+            return cur.fetchone()
+
+    def fetchall(self, sql: str, params: Tuple[Any, ...] | Dict[str, Any] = ()) -> List[sqlite3.Row]:
+        """Execute and fetch all matching rows."""
+        with self._lock:
+            cur = self.execute(sql, params)
+            return cur.fetchall()
+
+    def transaction(self):
+        """Context manager for explicit atomic transaction."""
+        return _TransactionContext(self)
+
+    def _initialize_database(self) -> None:
+        """Create all tables, constraints, and indexes if they do not exist."""
+        schema_sql = """
+        -- 1. Learners
+        CREATE TABLE IF NOT EXISTS learners (
+            learner_id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            primary_domain TEXT NOT NULL,
+            preferred_language TEXT NOT NULL,
+            preferred_learning_style TEXT NOT NULL,
+            preferred_explanation_style TEXT NOT NULL,
+            daily_time_budget_minutes INTEGER NOT NULL,
+            current_autonomy_level INTEGER NOT NULL,
+            known_strengths TEXT NOT NULL DEFAULT '[]',
+            known_weaknesses TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_active_at TEXT NOT NULL
+        );
+
+        -- 2. Learning Goals
+        CREATE TABLE IF NOT EXISTS learning_goals (
+            goal_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            target_outcome TEXT NOT NULL,
+            deadline TEXT,
+            priority INTEGER NOT NULL DEFAULT 3,
+            target_level TEXT NOT NULL DEFAULT 'competent',
+            daily_hours REAL NOT NULL DEFAULT 2.0,
+            milestones TEXT NOT NULL DEFAULT '[]',
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        );
+
+        -- 3. Subjects
+        CREATE TABLE IF NOT EXISTS subjects (
+            subject_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            description TEXT
+        );
+
+        -- 4. Topics
+        CREATE TABLE IF NOT EXISTS topics (
+            topic_id TEXT PRIMARY KEY,
+            subject_id TEXT NOT NULL REFERENCES subjects(subject_id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            prerequisites TEXT NOT NULL DEFAULT '[]'
+        );
+
+        -- 5. Topic Prerequisites DAG
+        CREATE TABLE IF NOT EXISTS topic_prerequisites (
+            topic_id TEXT NOT NULL REFERENCES topics(topic_id) ON DELETE CASCADE,
+            prerequisite_id TEXT NOT NULL REFERENCES topics(topic_id) ON DELETE CASCADE,
+            PRIMARY KEY (topic_id, prerequisite_id)
+        );
+
+        -- 6. Topic Mastery (Per-learner state)
+        CREATE TABLE IF NOT EXISTS topic_mastery (
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            topic_id TEXT NOT NULL REFERENCES topics(topic_id) ON DELETE CASCADE,
+            subject_id TEXT NOT NULL DEFAULT 'general',
+            name TEXT NOT NULL,
+            mastery_score REAL NOT NULL,
+            uncertainty REAL NOT NULL,
+            tier TEXT NOT NULL,
+            prerequisites TEXT NOT NULL DEFAULT '[]',
+            stability_factor REAL NOT NULL DEFAULT 14.0,
+            last_practiced TEXT,
+            successful_recalls INTEGER NOT NULL DEFAULT 0,
+            failed_recalls INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (learner_id, topic_id)
+        );
+
+        -- 7. Knowledge Gaps
+        CREATE TABLE IF NOT EXISTS knowledge_gaps (
+            gap_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            concept_id TEXT NOT NULL,
+            blocking_topic_id TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            diagnostic_evidence TEXT NOT NULL,
+            detected_at TEXT NOT NULL,
+            resolved INTEGER NOT NULL DEFAULT 0,
+            resolved_at TEXT
+        );
+
+        -- 8. Misconceptions
+        CREATE TABLE IF NOT EXISTS misconceptions (
+            record_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            topic_id TEXT NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT NOT NULL,
+            observed_code_snippet TEXT,
+            corrective_action_taken TEXT NOT NULL DEFAULT '',
+            timestamp TEXT NOT NULL
+        );
+
+        -- 9. Assessments
+        CREATE TABLE IF NOT EXISTS assessments (
+            assessment_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            topic_id TEXT NOT NULL,
+            task_id TEXT,
+            score REAL NOT NULL,
+            prior_mastery REAL NOT NULL,
+            new_mastery REAL NOT NULL,
+            prior_uncertainty REAL NOT NULL,
+            new_uncertainty REAL NOT NULL,
+            evaluated_tier TEXT NOT NULL,
+            identified_misconceptions TEXT NOT NULL DEFAULT '[]',
+            feedback_notes TEXT NOT NULL DEFAULT '',
+            evaluated_at TEXT NOT NULL
+        );
+
+        -- 10. Assessment Evidence
+        CREATE TABLE IF NOT EXISTS assessment_evidence (
+            evidence_id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL REFERENCES assessments(assessment_id) ON DELETE CASCADE,
+            learner_id TEXT NOT NULL,
+            evidence_type TEXT NOT NULL,
+            raw_input TEXT NOT NULL,
+            raw_output TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        );
+
+        -- 11. Learning Sessions
+        CREATE TABLE IF NOT EXISTS learning_sessions (
+            session_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            goal_id TEXT,
+            start_time TEXT NOT NULL,
+            end_time TEXT,
+            duration_minutes REAL NOT NULL DEFAULT 0.0,
+            topics_covered TEXT NOT NULL DEFAULT '[]',
+            tasks_completed TEXT NOT NULL DEFAULT '[]',
+            notes TEXT NOT NULL DEFAULT ''
+        );
+
+        -- 12. Learning Events
+        CREATE TABLE IF NOT EXISTS learning_events (
+            event_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            event_name TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            timestamp TEXT NOT NULL
+        );
+
+        -- 13. Learning Tasks
+        CREATE TABLE IF NOT EXISTS learning_tasks (
+            task_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            goal_id TEXT,
+            title TEXT NOT NULL,
+            topic_id TEXT NOT NULL,
+            estimated_minutes INTEGER NOT NULL DEFAULT 30,
+            status TEXT NOT NULL DEFAULT 'pending',
+            parameters TEXT NOT NULL DEFAULT '{}',
+            completed_at TEXT
+        );
+
+        -- 14. Resources
+        CREATE TABLE IF NOT EXISTS resources (
+            resource_id TEXT PRIMARY KEY,
+            topic_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            resource_type TEXT NOT NULL,
+            evaluation TEXT,
+            recommended_order INTEGER NOT NULL DEFAULT 1
+        );
+
+        -- 15. Progress Snapshots
+        CREATE TABLE IF NOT EXISTS progress_snapshots (
+            snapshot_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            timestamp TEXT NOT NULL,
+            topics_mastered_count INTEGER NOT NULL DEFAULT 0,
+            topics_practicing_count INTEGER NOT NULL DEFAULT 0,
+            active_gaps_count INTEGER NOT NULL DEFAULT 0,
+            average_mastery REAL NOT NULL DEFAULT 0.0,
+            velocity_topics_per_week REAL NOT NULL DEFAULT 0.0
+        );
+
+        -- 16. Interaction Memory
+        CREATE TABLE IF NOT EXISTS interaction_memory (
+            interaction_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            session_id TEXT,
+            topic_id TEXT,
+            role TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        );
+
+        -- 17. Typed Memory Items (General Semantic & Episodic Index)
+        CREATE TABLE IF NOT EXISTS memory_items (
+            memory_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL REFERENCES learners(learner_id) ON DELETE CASCADE,
+            memory_type TEXT NOT NULL,
+            key TEXT NOT NULL,
+            content TEXT NOT NULL,
+            structured_data TEXT,
+            source TEXT NOT NULL,
+            epistemic_status TEXT NOT NULL,
+            importance INTEGER NOT NULL DEFAULT 3,
+            confidence REAL NOT NULL DEFAULT 1.0,
+            topic_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_accessed_at TEXT,
+            access_count INTEGER NOT NULL DEFAULT 0
+        );
+
+        -- Indexes for fast isolated retrieval
+        CREATE INDEX IF NOT EXISTS idx_goals_learner ON learning_goals(learner_id, is_active);
+        CREATE INDEX IF NOT EXISTS idx_mastery_learner ON topic_mastery(learner_id, tier);
+        CREATE INDEX IF NOT EXISTS idx_gaps_learner ON knowledge_gaps(learner_id, resolved);
+        CREATE INDEX IF NOT EXISTS idx_misc_learner ON misconceptions(learner_id, topic_id);
+        CREATE INDEX IF NOT EXISTS idx_assess_learner ON assessments(learner_id, topic_id);
+        CREATE INDEX IF NOT EXISTS idx_sess_learner ON learning_sessions(learner_id, start_time);
+        CREATE INDEX IF NOT EXISTS idx_tasks_learner ON learning_tasks(learner_id, status);
+        CREATE INDEX IF NOT EXISTS idx_items_learner_type ON memory_items(learner_id, memory_type);
+        CREATE INDEX IF NOT EXISTS idx_items_key ON memory_items(learner_id, key);
+        """
+        with self._lock:
+            conn = self.get_connection()
+            conn.executescript(schema_sql)
+
+
+class _TransactionContext:
+    """Helper context manager for atomic transactions."""
+    def __init__(self, store: TarkyaanMemoryStore):
+        self.store = store
+        self._conn = store.get_connection()
+
+    def __enter__(self):
+        self.store._lock.acquire()
+        self._conn.execute("BEGIN TRANSACTION;")
+        return self._conn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if exc_type is not None:
+                self._conn.execute("ROLLBACK;")
+            else:
+                self._conn.execute("COMMIT;")
+        finally:
+            self.store._lock.release()

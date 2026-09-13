@@ -210,24 +210,29 @@ class ReplanningRecord(BaseModel):
 
 ---
 
-## 3. Storage Binding: NOVA MemoryManager Mapping
+## 3. Storage Binding: Tarkyaan Independent SQLite Persistence
 
-Tarkyaan persists all data models through NOVA's atomic JSON `MemoryManager`. No parallel SQLite or MongoDB processes are introduced.
+**Tarkyaan owns its independent SQLite persistent database (`data/tarkyaan.db`).** NOVA's `MemoryManager` is NOT used for learner data.
 
-| Entity Model | NOVA `MemoryCategory` | Persistent Key Convention | Storage Format |
+| Entity Model | SQLite Target Table | Primary Key | Foreign Key & Relations |
 | :--- | :--- | :--- | :--- |
-| `LearnerProfile` | `MemoryCategory.PROFILE` | `tarkyaan_profile_{learner_id}` | Serialized JSON dictionary |
-| `LearningGoal` | `MemoryCategory.GOALS` | `tarkyaan_goal_{goal_id}` | Serialized JSON dictionary |
-| `TopicMastery` | `MemoryCategory.EDUCATION` | `tarkyaan_mastery_{topic_id}` | Serialized JSON dictionary |
-| `KnowledgeGap` | `MemoryCategory.EDUCATION` | `tarkyaan_gap_{gap_id}` | Serialized JSON dictionary |
-| `LearningPlan` | `MemoryCategory.EDUCATION` | `tarkyaan_plan_{plan_id}` | Hierarchical JSON dictionary |
-| `AssessmentResult` | `MemoryCategory.EDUCATION` | `tarkyaan_assessment_{id}` | Serialized JSON dictionary |
-| `MisconceptionRecord` | `MemoryCategory.CODING` | `tarkyaan_misconception_{id}` | Serialized JSON dictionary |
+| `LearnerProfile` | `learners` | `learner_id` | Independent root entity |
+| `LearningGoal` | `learning_goals` | `goal_id` | `learner_id REFERENCES learners` (CASCADE) |
+| `Subject` | `subjects` | `subject_id` | Domain definition root |
+| `Topic` | `topics` | `topic_id` | `subject_id REFERENCES subjects` |
+| `TopicMastery` | `topic_mastery` | `(learner_id, topic_id)` | `learner_id`, `topic_id` |
+| `KnowledgeGap` | `knowledge_gaps` | `gap_id` | `learner_id REFERENCES learners` |
+| `MisconceptionRecord`| `misconceptions` | `record_id` | `learner_id REFERENCES learners` |
+| `AssessmentResult` | `assessments` | `assessment_id` | `learner_id REFERENCES learners` |
+| `LearningSession` | `learning_sessions` | `session_id` | `learner_id REFERENCES learners` |
+| `ProgressSnapshot` | `progress_snapshots` | `snapshot_id` | `learner_id REFERENCES learners` |
+| `MemoryItem` | `memory_items` | `memory_id` | `learner_id REFERENCES learners` |
 
-### Atomic Read/Write Guarantees
-- Write operations serialize the Pydantic instance via `.model_dump_json()`.
-- NOVA's `MemoryManager` performs an atomic write to a temporary file followed by `os.replace()`, preventing partial corruption during unexpected shutdowns.
-- If data corruption occurs, NOVA's store quarantine mechanism captures the corrupt file to `memory_store.json.corrupt.<timestamp>` and initializes a clean fallback store.
+### Transactional Guarantees & Isolation
+- **Thread Safety**: All SQLite operations are guarded by `threading.RLock`.
+- **Atomic Writes**: Explicit transactions (`BEGIN TRANSACTION ... COMMIT/ROLLBACK`) guarantee atomicity.
+- **Strict Tenant Isolation**: Every query filters on `learner_id`, preventing data leakage between learners.
+- **Epistemic Tracking**: Distinct columns for `epistemic_status` (`FACT` vs `INFERENCE`), `source`, and `confidence`.
 
 ---
 

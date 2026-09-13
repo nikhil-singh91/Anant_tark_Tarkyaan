@@ -16,7 +16,7 @@ The following components are **strictly prohibited** from being rewritten:
 - ❌ **TarkyaanBrowserEngine**: Prohibited. Route browser interactions through `browser.manager.BrowserManager` and `browser.engine.MacOSNativeBrowserEngine`.
 - ❌ **TarkyaanComputerAgent**: Prohibited. Route screen perception and mouse/keyboard events through `core.computer_agent.ComputerAgent` and `core.eyes.manager.NovaEyesManager`.
 - ❌ **TarkyaanVoiceEngine**: Prohibited. Reuse `voice.manager.VoiceManager`, Silero VAD, Faster-Whisper, and Edge-TTS.
-- ❌ **TarkyaanMemoryEngine**: Prohibited. Reuse `memory.memory_manager.MemoryManager` and `memory.vector_store.VectorStore`.
+- ❌ **NOVA Memory Dependency**: Prohibited. Tarkyaan owns its own independent SQLite-based persistent memory system (`TarkyaanMemoryStore` & `TarkyaanMemoryManager`). NOVA memory is NOT used for learner state, goals, or knowledge tracking.
 
 ---
 
@@ -25,8 +25,8 @@ The following components are **strictly prohibited** from being rewritten:
 | # | Tarkyaan Educational Requirement | NOVA Infrastructure Subsystem | Existing NOVA API Contract | Reuse Strategy | New Work Required in Tarkyaan | Operational Risk & Mitigation |
 | :-: | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1** | Pedagogical reasoning, plan synthesis, question generation, and conversational mentorship | Multi-Provider Brain (`providers.provider_manager.ProviderManager`) | `generate_response(prompt, system_prompt, task_type, mode, max_tokens)`<br>`stream_response(...)` | **DIRECT REUSE** | Create prompt profile templates (`TarkyaanSystemPrompts`) and task routing tags (`TaskType.REASONING` vs `TaskType.FAST`). | **Low**: Automatic failover (Gemini $\to$ OpenRouter $\to$ Groq $\to$ Cerebras) guarantees 99.9% uptime. |
-| **2** | Storing persistent learner profile, knowledge state, goals, study history, and misconceptions | Durable Structured Memory (`memory.memory_manager.MemoryManager`) | `add_memory(category, key, value, importance, tags)`<br>`search_memory(...)`<br>`delete_memory(id)` | **DIRECT REUSE** | Define structured JSON schemas under `MemoryCategory.EDUCATION` and `MemoryCategory.GOALS`. | **Low**: Atomic JSON writes prevent file corruption on unexpected power loss. |
-| **3** | Semantic search across study notes, lecture excerpts, textbook summaries, and problem sets | Semantic Vector Store (`memory.vector_store.VectorStore`) | `add_document(text, metadata, doc_id)`<br>`search(query, n_results, filter_metadata)` | **WRAPPER** | Build `StudyContentIndexer` to chunk and embed educational materials with metadata tagging. | **Medium**: ChromaDB cold-start latency; mitigated by in-memory mock fallback in tests. |
+| **2** | Storing persistent learner profile, knowledge state, goals, study history, and misconceptions | **Tarkyaan Independent Memory** (`tarkyaan.memory.TarkyaanMemoryManager`) | `create_learner(...)`<br>`update_topic_mastery(...)`<br>`retrieve_context(...)` | **INDEPENDENT (NO NOVA MEMORY)** | Implemented Tarkyaan's own multi-table SQLite memory engine (`data/tarkyaan.db`) with strict learner isolation and epistemic status tracking. | **Zero NOVA Risk**: Decoupled from NOVA storage; zero risk of corrupting NOVA store. |
+| **3** | Semantic search across study notes, lecture excerpts, textbook summaries, and problem sets | **Tarkyaan Knowledge Store** (`tarkyaan.memory.memory_store`) | SQL query & contextual token budget retrieval | **INDEPENDENT (NO NOVA VECTORSTORE)** | Local-first relational indexing with semantic metadata in Tarkyaan's own SQLite store. | **Zero NOVA Risk**: Complete isolation from NOVA vectors. |
 | **4** | Natural voice dialogue, hands-free study coaching, pronunciation & verbal explanation | Voice V2 Audio Pipeline (`voice.manager.VoiceManager`) | `start_listening()`<br>`stop_listening()`<br>`speak(text)`<br>`is_speaking()` | **DIRECT REUSE** | Inject educational response cleaning so formulas and code blocks speak naturally without raw syntax reading. | **Low**: Reuses proven 16kHz PyAudio stream, Silero VAD, and Faster-Whisper ASR. |
 | **5** | Empathetic reaction to non-verbal cues (sighs, hesitations, throat clearing during study) | Acoustic Event Detector (`voice.audio_events.AudioEventDetector`) | `detect_events(audio_chunk)` | **DIRECT REUSE** | Map frustration or fatigue acoustic markers to encouraging pedagogical checkpoints. | **Low**: Runs sub-10ms acoustic classifier without calling external LLMs. |
 | **6** | Researching official documentation, tutorials, competitive programming problems, and papers | Browser Automation (`browser.manager.BrowserManager`, `MacOSNativeBrowserEngine`) | `execute_command(text)`<br>`execute_plan(plan)`<br>`open_url(url)`<br>`search_web(query)` | **DIRECT REUSE** | Build `EducationalResourceCurator` that queries Google/GitHub/YouTube via existing site skills. | **Low**: AppleScript native control avoids third-party extension breakages. |
@@ -78,38 +78,31 @@ class TarkyaanAIBridge:
         )
 ```
 
-### 3.2 Memory Subsystem Integration
-Tarkyaan stores all learner states using NOVA's `MemoryManager`:
-- **`MemoryCategory.EDUCATION`**: Stores syllabus progress, concept mastery weights (`{topic: "binary_search", mastery: 0.85}`), diagnosed gaps, and assessment logs.
-- **`MemoryCategory.GOALS`**: Stores current active learning targets, milestones, deadlines, and daily hour allocations.
-- **`MemoryCategory.PROFILE`**: Stores learner experience level, target career/academics, preferred programming languages.
-- **`MemoryCategory.CODING`**: Stores recurring syntax mistakes, favorite algorithms, and code review observations.
+### 3.2 Memory Subsystem: Complete Tarkyaan Independence
+**HARD ARCHITECTURAL INVARIANT: Tarkyaan MUST NOT use NOVA's memory system.**
+Tarkyaan learner data, cognitive state, goals, curriculum progress, and interaction memories are maintained in Tarkyaan's own local-first SQLite persistent database (`tarkyaan/memory/` and `data/tarkyaan.db`).
+
+- **Learner Isolation**: Enforced by foreign keys and per-learner SQLite queries; Learner A's data can never bleed into Learner B's context.
+- **Epistemic Tracking**: Explicit separation between verified ground truths (`FACT`) and model-generated inferences (`INFERENCE`).
+- **Zero NOVA Memory Pollution**: NOVA's `MemoryManager` and `VectorStore` are neither imported nor invoked.
 
 ```python
-# Tarkyaan Memory Adapter
-from memory.memory_manager import MemoryManager, MemoryCategory
+# Tarkyaan Independent Memory Usage
+from tarkyaan.memory import TarkyaanMemoryManager, TarkyaanMemoryStore
+from tarkyaan.models import LearnerProfile, TopicMastery, MasteryTier
 
-class TarkyaanMemoryAdapter:
-    def __init__(self, memory_manager: MemoryManager):
-        self._mem = memory_manager
+store = TarkyaanMemoryStore("data/tarkyaan.db")
+mem = TarkyaanMemoryManager(store=store)
 
-    def record_concept_mastery(self, topic: str, mastery_score: float, evidence: str) -> None:
-        self._mem.add_memory(
-            category=MemoryCategory.EDUCATION,
-            key=f"mastery_{topic}",
-            value={"score": mastery_score, "evidence": evidence, "updated_at": "ISO_TIMESTAMP"},
-            importance=4,
-            tags=("tarkyaan", "mastery", topic)
-        )
-
-    def record_knowledge_gap(self, concept: str, root_cause: str, severity: str) -> None:
-        self._mem.add_memory(
-            category=MemoryCategory.EDUCATION,
-            key=f"gap_{concept}",
-            value={"concept": concept, "root_cause": root_cause, "severity": severity},
-            importance=5,
-            tags=("tarkyaan", "knowledge_gap", concept)
-        )
+# Storing learner mastery in Tarkyaan's own isolated relational store
+mem.update_topic_mastery(TopicMastery(
+    learner_id="learner_001",
+    topic_id="binary_search",
+    name="Binary Search",
+    mastery_score=0.85,
+    uncertainty=0.15,
+    tier=MasteryTier.COMPETENT
+))
 ```
 
 ### 3.3 Task Execution & Capability Registry Integration
