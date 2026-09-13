@@ -33,9 +33,21 @@ class TarkyaanEvent(str, Enum):
     USER_INPUT_RECEIVED = "user_input_received"
     INTENT_RESOLVED = "intent_resolved"
 
-    # 3. Learning & Diagnostics
+    # 3. Learning, Teaching, Practice & Sessions (Phase 5)
     LEARNING_SESSION_STARTED = "learning_session_started"
     LEARNING_SESSION_ENDED = "learning_session_ended"
+    SESSION_STAGE_CHANGED = "session_stage_changed"
+    SESSION_PAUSED = "session_paused"
+    SESSION_RESUMED = "session_resumed"
+    TEACHING_STARTED = "teaching_started"
+    TEACHING_COMPLETED = "teaching_completed"
+    PRACTICE_STARTED = "practice_started"
+    PRACTICE_COMPLETED = "practice_completed"
+    QUESTION_PRESENTED = "question_presented"
+    ANSWER_RECEIVED = "answer_received"
+    ANSWER_EVALUATED = "answer_evaluated"
+    HINT_REQUESTED = "hint_requested"
+    HINT_PROVIDED = "hint_provided"
     DIAGNOSTIC_SESSION_STARTED = "diagnostic_session_started"
     DIAGNOSTIC_ANSWER_EVALUATED = "diagnostic_answer_evaluated"
     DIAGNOSTIC_SESSION_COMPLETED = "diagnostic_session_completed"

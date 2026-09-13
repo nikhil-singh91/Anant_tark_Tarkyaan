@@ -9,7 +9,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
-from tarkyaan.models.enums import TaskStatus
+from tarkyaan.models.enums import SessionStage, SessionStatus, TaskStatus
+from tarkyaan.models.practice import AnswerEvaluation, PracticeQuestion
+from tarkyaan.models.session import SessionInteraction, SessionSummary, StageTransitionRecord
 from tarkyaan.models.planning import (
     LearningPlan,
     LearningTask,
@@ -27,11 +29,29 @@ def _utc_now() -> datetime:
 
 class LearningSession(BaseModel):
     """
-    Episodic record of a focused study or practice session.
+    Episodic record and active state of a persistent learning session.
+    Manages session lifecycle, stage transitions, questions, answers, and mastery updates.
     """
     session_id: str = Field(default_factory=lambda: f"sess_{uuid.uuid4().hex[:8]}")
     learner_id: str
     goal_id: Optional[str] = None
+    plan_id: Optional[str] = None
+    task_id: Optional[str] = None
+    concept_id: Optional[str] = None
+    objective: str = ""
+    status: SessionStatus = SessionStatus.CREATED
+    current_stage: SessionStage = SessionStage.INITIALIZE
+    stage_history: List[StageTransitionRecord] = Field(default_factory=list)
+    interaction_history: List[SessionInteraction] = Field(default_factory=list)
+    questions_asked: List[PracticeQuestion] = Field(default_factory=list)
+    answers_received: List[AnswerEvaluation] = Field(default_factory=list)
+    hints_used: int = 0
+    evidence_collected: List[float] = Field(default_factory=list)
+    resources_used: List[str] = Field(default_factory=list)
+    mastery_changes: Dict[str, Dict[str, float]] = Field(default_factory=dict)
+    summary: Optional[SessionSummary] = None
+    next_recommended_task_id: Optional[str] = None
+
     start_time: datetime = Field(default_factory=_utc_now)
     end_time: Optional[datetime] = None
     duration_minutes: float = Field(default=0.0, ge=0.0)
@@ -44,6 +64,8 @@ class LearningSession(BaseModel):
         self.end_time = now
         elapsed = (now - self.start_time).total_seconds() / 60.0
         self.duration_minutes = round(max(1.0, elapsed), 1)
+        self.status = SessionStatus.COMPLETED
+        self.current_stage = SessionStage.COMPLETE
         if notes:
             self.notes = notes
 

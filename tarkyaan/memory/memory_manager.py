@@ -561,8 +561,12 @@ class TarkyaanMemoryManager:
         sql = """
         INSERT OR REPLACE INTO learning_sessions (
             session_id, learner_id, goal_id, start_time, end_time,
-            duration_minutes, topics_covered, tasks_completed, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            duration_minutes, topics_covered, tasks_completed, notes,
+            plan_id, task_id, concept_id, objective, status, current_stage,
+            stage_history, questions_asked, answers_received, hints_used,
+            evidence_collected, resources_used, mastery_changes, summary,
+            next_recommended_task_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         self.store.execute(sql, (
             session.session_id,
@@ -573,27 +577,166 @@ class TarkyaanMemoryManager:
             session.duration_minutes,
             json.dumps(session.topics_covered),
             json.dumps(session.tasks_completed),
-            session.notes
+            session.notes,
+            session.plan_id,
+            session.task_id,
+            session.concept_id,
+            session.objective,
+            session.status.value if hasattr(session.status, "value") else str(session.status),
+            session.current_stage.value if hasattr(session.current_stage, "value") else str(session.current_stage),
+            json.dumps([h.model_dump(mode="json") if hasattr(h, "model_dump") else h for h in session.stage_history]),
+            json.dumps([q.model_dump(mode="json") if hasattr(q, "model_dump") else q for q in session.questions_asked]),
+            json.dumps([a.model_dump(mode="json") if hasattr(a, "model_dump") else a for a in session.answers_received]),
+            session.hints_used,
+            json.dumps(session.evidence_collected),
+            json.dumps(session.resources_used),
+            json.dumps(session.mastery_changes),
+            session.summary.model_dump_json() if session.summary else None,
+            session.next_recommended_task_id
         ))
         return session
+
+    def _row_to_session(self, r: Any) -> LearningSession:
+        from tarkyaan.models.enums import SessionStage, SessionStatus
+        from tarkyaan.models.practice import AnswerEvaluation, PracticeQuestion
+        from tarkyaan.models.session import SessionSummary, StageTransitionRecord
+
+        keys = r.keys() if hasattr(r, "keys") else []
+        plan_id = r["plan_id"] if "plan_id" in keys else None
+        task_id = r["task_id"] if "task_id" in keys else None
+        concept_id = r["concept_id"] if "concept_id" in keys else None
+        objective = r["objective"] if "objective" in keys and r["objective"] else ""
+        raw_status = r["status"] if "status" in keys and r["status"] else "created"
+        try:
+            status = SessionStatus(raw_status)
+        except Exception:
+            status = SessionStatus.CREATED
+
+        raw_stage = r["current_stage"] if "current_stage" in keys and r["current_stage"] else "initialize"
+        try:
+            current_stage = SessionStage(raw_stage)
+        except Exception:
+            current_stage = SessionStage.INITIALIZE
+
+        stage_history: List[StageTransitionRecord] = []
+        if "stage_history" in keys and r["stage_history"]:
+            try:
+                for item in json.loads(r["stage_history"]):
+                    stage_history.append(StageTransitionRecord.model_validate(item))
+            except Exception:
+                pass
+
+        questions_asked: List[PracticeQuestion] = []
+        if "questions_asked" in keys and r["questions_asked"]:
+            try:
+                for item in json.loads(r["questions_asked"]):
+                    questions_asked.append(PracticeQuestion.model_validate(item))
+            except Exception:
+                pass
+
+        answers_received: List[AnswerEvaluation] = []
+        if "answers_received" in keys and r["answers_received"]:
+            try:
+                for item in json.loads(r["answers_received"]):
+                    answers_received.append(AnswerEvaluation.model_validate(item))
+            except Exception:
+                pass
+
+        hints_used = r["hints_used"] if "hints_used" in keys and r["hints_used"] is not None else 0
+        evidence_collected = json.loads(r["evidence_collected"] or "[]") if "evidence_collected" in keys and r["evidence_collected"] else []
+        resources_used = json.loads(r["resources_used"] or "[]") if "resources_used" in keys and r["resources_used"] else []
+        mastery_changes = json.loads(r["mastery_changes"] or "{}") if "mastery_changes" in keys and r["mastery_changes"] else {}
+
+        summary: Optional[SessionSummary] = None
+        if "summary" in keys and r["summary"]:
+            try:
+                summary = SessionSummary.model_validate_json(r["summary"])
+            except Exception:
+                pass
+
+        next_rec = r["next_recommended_task_id"] if "next_recommended_task_id" in keys else None
+
+        return LearningSession(
+            session_id=r["session_id"],
+            learner_id=r["learner_id"],
+            goal_id=r["goal_id"],
+            plan_id=plan_id,
+            task_id=task_id,
+            concept_id=concept_id,
+            objective=objective,
+            status=status,
+            current_stage=current_stage,
+            stage_history=stage_history,
+            questions_asked=questions_asked,
+            answers_received=answers_received,
+            hints_used=hints_used,
+            evidence_collected=evidence_collected,
+            resources_used=resources_used,
+            mastery_changes=mastery_changes,
+            summary=summary,
+            next_recommended_task_id=next_rec,
+            start_time=_parse_dt(r["start_time"]) or _utc_now(),
+            end_time=_parse_dt(r["end_time"]),
+            duration_minutes=r["duration_minutes"],
+            topics_covered=json.loads(r["topics_covered"] or "[]"),
+            tasks_completed=json.loads(r["tasks_completed"] or "[]"),
+            notes=r["notes"] or ""
+        )
+
+    def get_learning_session(self, session_id: str) -> Optional[LearningSession]:
+        sql = "SELECT * FROM learning_sessions WHERE session_id = ?;"
+        row = self.store.fetchone(sql, (session_id,))
+        if not row:
+            return None
+        return self._row_to_session(row)
 
     def get_learning_sessions(self, learner_id: str, limit: int = 10) -> List[LearningSession]:
         sql = "SELECT * FROM learning_sessions WHERE learner_id = ? ORDER BY start_time DESC LIMIT ?;"
         rows = self.store.fetchall(sql, (learner_id, limit))
-        sessions: List[LearningSession] = []
+        return [self._row_to_session(r) for r in rows]
+
+    def record_session_interaction(
+        self,
+        session_id: str,
+        speaker: str,
+        stage: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        interaction_id: Optional[str] = None
+    ) -> str:
+        i_id = interaction_id or f"turn_{uuid.uuid4().hex[:8]}"
+        now = _iso(_utc_now())
+        count_row = self.store.fetchone(
+            "SELECT COUNT(*) as cnt FROM session_interactions WHERE session_id = ?;",
+            (session_id,)
+        )
+        turn_index = count_row["cnt"] if count_row else 0
+        meta_json = json.dumps(metadata or {})
+
+        sql = """
+        INSERT INTO session_interactions (
+            interaction_id, session_id, turn_index, speaker, stage, content, metadata, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        self.store.execute(sql, (i_id, session_id, turn_index, speaker, stage, content, meta_json, now))
+        return i_id
+
+    def get_session_interactions(self, session_id: str) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM session_interactions WHERE session_id = ? ORDER BY turn_index ASC;"
+        rows = self.store.fetchall(sql, (session_id,))
+        results: List[Dict[str, Any]] = []
         for r in rows:
-            sessions.append(LearningSession(
-                session_id=r["session_id"],
-                learner_id=r["learner_id"],
-                goal_id=r["goal_id"],
-                start_time=_parse_dt(r["start_time"]) or _utc_now(),
-                end_time=_parse_dt(r["end_time"]),
-                duration_minutes=r["duration_minutes"],
-                topics_covered=json.loads(r["topics_covered"] or "[]"),
-                tasks_completed=json.loads(r["tasks_completed"] or "[]"),
-                notes=r["notes"] or ""
-            ))
-        return sessions
+            results.append({
+                "interaction_id": r["interaction_id"],
+                "session_id": r["session_id"],
+                "turn_index": r["turn_index"],
+                "speaker": r["speaker"],
+                "stage": r["stage"],
+                "content": r["content"],
+                "metadata": json.loads(r["metadata"] or "{}"),
+                "timestamp": r["timestamp"]
+            })
+        return results
 
     def record_progress_snapshot(self, snapshot: ProgressSnapshot) -> ProgressSnapshot:
         sql = """

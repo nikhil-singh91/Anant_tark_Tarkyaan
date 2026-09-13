@@ -397,9 +397,22 @@ class TarkyaanMemoryStore:
         CREATE INDEX IF NOT EXISTS idx_goals_learner ON learning_goals(learner_id, is_active);
         CREATE INDEX IF NOT EXISTS idx_mastery_learner ON topic_mastery(learner_id, tier);
         CREATE INDEX IF NOT EXISTS idx_gaps_learner ON knowledge_gaps(learner_id, resolved);
+        -- 23. Session Interactions (Phase 5)
+        CREATE TABLE IF NOT EXISTS session_interactions (
+            interaction_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES learning_sessions(session_id) ON DELETE CASCADE,
+            turn_index INTEGER NOT NULL DEFAULT 0,
+            speaker TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            content TEXT NOT NULL,
+            metadata TEXT NOT NULL DEFAULT '{}',
+            timestamp TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_misc_learner ON misconceptions(learner_id, topic_id);
         CREATE INDEX IF NOT EXISTS idx_assess_learner ON assessments(learner_id, topic_id);
         CREATE INDEX IF NOT EXISTS idx_sess_learner ON learning_sessions(learner_id, start_time);
+        CREATE INDEX IF NOT EXISTS idx_sess_interactions ON session_interactions(session_id, turn_index);
         CREATE INDEX IF NOT EXISTS idx_tasks_learner ON learning_tasks(learner_id, status);
         CREATE INDEX IF NOT EXISTS idx_plans_learner ON learning_plans(learner_id, status);
         CREATE INDEX IF NOT EXISTS idx_phases_plan ON study_phases(plan_id, phase_order);
@@ -465,6 +478,29 @@ class TarkyaanMemoryStore:
             ]:
                 try:
                     conn.execute(f"ALTER TABLE resources ADD COLUMN {col_name} {col_type};")
+                except Exception:
+                    pass
+
+            # Ensure extended columns for learning_sessions (Phase 5)
+            for col_name, col_type in [
+                ("plan_id", "TEXT"),
+                ("task_id", "TEXT"),
+                ("concept_id", "TEXT"),
+                ("objective", "TEXT NOT NULL DEFAULT ''"),
+                ("status", "TEXT NOT NULL DEFAULT 'created'"),
+                ("current_stage", "TEXT NOT NULL DEFAULT 'initialize'"),
+                ("stage_history", "TEXT NOT NULL DEFAULT '[]'"),
+                ("questions_asked", "TEXT NOT NULL DEFAULT '[]'"),
+                ("answers_received", "TEXT NOT NULL DEFAULT '[]'"),
+                ("hints_used", "INTEGER NOT NULL DEFAULT 0"),
+                ("evidence_collected", "TEXT NOT NULL DEFAULT '[]'"),
+                ("resources_used", "TEXT NOT NULL DEFAULT '[]'"),
+                ("mastery_changes", "TEXT NOT NULL DEFAULT '{}'"),
+                ("summary", "TEXT"),
+                ("next_recommended_task_id", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE learning_sessions ADD COLUMN {col_name} {col_type};")
                 except Exception:
                     pass
 

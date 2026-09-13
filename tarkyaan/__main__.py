@@ -61,7 +61,27 @@ def check_runtime_health() -> int:
         from tarkyaan.safety import safety_policy
         print("  [+] Safety policies and macOS permission boundaries active")
 
-        print("\nAll Tarkyaan Phase 1-4 subsystems are operational and healthy.\n")
+        # 9. Teaching & Adaptive Explanation Engine (Phase 5)
+        from tarkyaan.teaching import TeachingEngine
+        teaching = TeachingEngine()
+        print("  [+] Teaching & Adaptive Explanation Engine operational")
+
+        # 10. Interactive Practice Engine (Phase 5)
+        from tarkyaan.practice import PracticeEngine
+        practice = PracticeEngine()
+        print("  [+] Practice Engine & 5-Tier Progressive Hint Engine operational")
+
+        # 11. Learning Session Engine (Phase 5)
+        from tarkyaan.session import LearningSessionEngine
+        session_eng = LearningSessionEngine(memory_manager=manager)
+        print("  [+] Learning Session Engine & Stage Machine operational")
+
+        # 12. Voice Companion Loop (Phase 5)
+        from tarkyaan.voice import VoiceConversationController
+        voice_ctrl = VoiceConversationController(session_engine=session_eng)
+        print("  [+] Advanced Voice Companion Loop & Command Recognizer operational")
+
+        print("\nAll Tarkyaan Phase 1-5 subsystems are operational and healthy.\n")
         return 0
     except Exception as exc:
         print(f"\n[-] Tarkyaan startup health check failed: {exc}", file=sys.stderr)

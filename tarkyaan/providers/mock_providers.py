@@ -77,3 +77,7 @@ class MockVoiceTTSProvider(VoiceTTSProvider):
 
     def synthesize(self, text: str, voice: str = "hi-IN-SwaraNeural") -> bytes:
         return b"RIFFmockwavheaderdata"
+
+
+MockSTTProvider = MockVoiceSTTProvider
+MockTTSProvider = MockVoiceTTSProvider

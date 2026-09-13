@@ -132,6 +132,15 @@ from tarkyaan.models.enums import (
     ResourceType,
     SourceAuthorityTier,
     TaskStatus,
+    # Phase 5 Enums
+    ExplanationStyle,
+    HintLevel,
+    PracticeQuestionType,
+    SessionStage,
+    SessionStatus,
+    TeachingMode,
+    VoiceIntent,
+    VoiceState,
 )
 from tarkyaan.models.research import (
     CuratedResourceBundle,
@@ -140,6 +149,25 @@ from tarkyaan.models.research import (
     ResourceDimensionScores,
     ResourceProvenance,
     SearchResultCandidate,
+)
+from tarkyaan.models.teaching import (
+    ExplanationRequest,
+    ExplanationResponse,
+    MisconceptionIntervention,
+    PrerequisiteRemediation,
+    SocraticProbe,
+)
+from tarkyaan.models.practice import (
+    AnswerEvaluation as PracticeAnswerEvaluation,
+    HintRequest,
+    HintResponse,
+    PracticeQuestion,
+)
+from tarkyaan.models.session import (
+    MasteryDeltaRecord,
+    SessionInteraction,
+    SessionSummary,
+    StageTransitionRecord,
 )
 from tarkyaan.research import (
     MockSearchProvider,
@@ -156,6 +184,31 @@ from tarkyaan.research import (
     SearchResponse,
     TavilySearchProvider,
     URLNormalizer,
+)
+from tarkyaan.teaching import (
+    ExplanationEngine,
+    MisconceptionTutor,
+    PrerequisiteTutor,
+    SocraticEngine,
+    TeachingEngine,
+)
+from tarkyaan.practice import (
+    AnswerEvaluator as PracticeAnswerEvaluator,
+    HintEngine,
+    PracticeEngine,
+    PracticeQuestionGenerator,
+)
+from tarkyaan.session import (
+    InvalidStageTransitionError,
+    LearningSessionEngine,
+    MasteryEvidenceCollector,
+    SessionStateMachine,
+)
+from tarkyaan.voice import (
+    VoiceCommandRecognizer,
+    VoiceContextResolver,
+    VoiceConversationController,
+    VoiceManager,
 )
 
 __all__ = [
@@ -298,4 +351,46 @@ __all__ = [
     "SearchResponse",
     "MockSearchProvider",
     "TavilySearchProvider",
+    # Phase 5 Teaching & Adaptive Explanation
+    "ExplanationStyle",
+    "ExplanationRequest",
+    "ExplanationResponse",
+    "SocraticProbe",
+    "MisconceptionIntervention",
+    "PrerequisiteRemediation",
+    "TeachingEngine",
+    "ExplanationEngine",
+    "SocraticEngine",
+    "MisconceptionTutor",
+    "PrerequisiteTutor",
+    # Phase 5 Practice Engine
+    "PracticeQuestionType",
+    "HintLevel",
+    "PracticeQuestion",
+    "HintRequest",
+    "HintResponse",
+    "PracticeAnswerEvaluation",
+    "PracticeEngine",
+    "PracticeQuestionGenerator",
+    "HintEngine",
+    "PracticeAnswerEvaluator",
+    # Phase 5 Learning Session Engine
+    "SessionStage",
+    "SessionStatus",
+    "TeachingMode",
+    "SessionInteraction",
+    "SessionSummary",
+    "StageTransitionRecord",
+    "MasteryDeltaRecord",
+    "LearningSessionEngine",
+    "SessionStateMachine",
+    "MasteryEvidenceCollector",
+    "InvalidStageTransitionError",
+    # Phase 5 Voice Companion
+    "VoiceState",
+    "VoiceIntent",
+    "VoiceConversationController",
+    "VoiceCommandRecognizer",
+    "VoiceContextResolver",
+    "VoiceManager",
 ]

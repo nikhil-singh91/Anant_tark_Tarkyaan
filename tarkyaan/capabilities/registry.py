@@ -240,9 +240,39 @@ class CapabilityRegistry:
                 name="voice.speak",
                 category=CapabilityCategory.VOICE,
                 description="Synthesize natural vocal responses using neural TTS.",
-                status=CapabilityStatus.PLANNED,
+                status=CapabilityStatus.AVAILABLE,
                 risk_level=RiskLevel.LOW,
                 subsystem="voice",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="learning.teach_concept",
+                category=CapabilityCategory.LEARNING,
+                description="Adaptive multi-tier concept explanation and Socratic discovery inquiries.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="teaching",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="learning.interactive_practice",
+                category=CapabilityCategory.LEARNING,
+                description="Interactive exercise generation with 5-tier progressive hints and reasoning evaluation.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="practice",
+            )
+        )
+        self.register(
+            CapabilityDefinition(
+                name="learning.manage_session",
+                category=CapabilityCategory.LEARNING,
+                description="Persistent 8-stage learning sessions with pause, resume, and evidence-based mastery updates.",
+                status=CapabilityStatus.AVAILABLE,
+                risk_level=RiskLevel.LOW,
+                subsystem="session",
             )
         )
 
